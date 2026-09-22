@@ -85,7 +85,12 @@ class CountingAdapter:
 
     def current_competitions(self):
         self.calls.append("competitions")
-        return [{"code": c, "season": {"start": "2000-01-01", "end": "2999-01-01"}} for c in ("PL", "PD", "BL1", "SA", "FL1", "DED")]
+        return [{"code": c, "season": {"start": "2000-01-01", "end": "2999-01-01", "matchday": 5}}
+                for c in ("PL", "PD", "BL1", "SA", "FL1", "DED")]
+
+    def matchday(self, code, md):
+        self.calls.append(f"round {code} {md}")
+        return [{"id": f"fd-{code}-{md}", "kickoffUtc": "2026-10-10T14:00:00Z", "competition": {"name": code}}]
 
     def standings(self, code):
         self.calls.append(f"standings {code}")
@@ -111,5 +116,9 @@ def test_the_poller_stays_inside_the_free_tier_budget():
     a.calls.clear()
     for _ in range(5):
         poller.tick()
-    assert len(a.calls) <= 5 * 4  # at most four requests a tick after the start
+    assert len(a.calls) <= 5 * 5  # at most five requests a tick after the start
+    rounds = [c for c in a.calls if c.startswith("round")]
+    assert rounds[:2] == ["round PL 6", "round PD 6"]  # one league's next round a minute, biggest first
+    snap = json.loads(redis_fake.get(fixtures.KEY))
+    assert any(m["id"] == "fd-PL-6" for m in snap["matches"])  # after the break, still visible
     assert sum(c.startswith("matches") for c in a.calls) == 5  # the far window is not re-fetched every minute

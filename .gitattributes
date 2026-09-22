@@ -1,0 +1,5 @@
+# Store text with LF everywhere, so Docker builds and shell steps behave the
+# same whether the checkout happened on Windows, macOS or Linux.
+* text=auto eol=lf
+*.png binary
+*.woff2 binary

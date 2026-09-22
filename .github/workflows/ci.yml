@@ -16,10 +16,10 @@ env:
 jobs:
   quality:
     name: lint and types
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12", cache: pip }
       - run: pip install ruff mypy
       - run: ruff check backend/onside backend/tests backend/benchmarks infra
@@ -30,27 +30,29 @@ jobs:
 
   backend:
     name: tests (${{ matrix.suite }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         suite: [unit, correction, contract, integration, model]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12", cache: pip }
       - run: pip install -e "backend[dev]"
       - name: Cache the StatsBomb sample
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: data
-          key: statsbomb-sample-v1
+          key: statsbomb-sample-v2
       - name: Build a three-match archive
         # The suites skip cleanly without data, but a real archive is what makes
         # them worth running: the tests then exercise real events end to end.
         run: |
           python -m onside.replay.download 43 106 || true
           python -m onside.ingest.build --competition 43 --limit 3 --workers 4 || true
+          # The 2022 final: the match the API and replay tests are written against.
+          python -m onside.ingest.build --match 3869685 --workers 1
         working-directory: backend
         env:
           ONSIDE_DATA_DIR: ${{ github.workspace }}/data
@@ -67,14 +69,14 @@ jobs:
 
   coverage:
     name: coverage gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12", cache: pip }
       - run: pip install -e "backend[dev]" pytest-cov
-      - uses: actions/cache@v4
-        with: { path: data, key: statsbomb-sample-v1 }
+      - uses: actions/cache@v6
+        with: { path: data, key: statsbomb-sample-v2 }
       - run: python -c "from onside.replay.download import fetch_events, fetch_lineups; fetch_events(3869685); fetch_lineups(3869685)"
         working-directory: backend
         env: { ONSIDE_DATA_DIR: "${{ github.workspace }}/data" }
@@ -84,11 +86,11 @@ jobs:
 
   web:
     name: web app
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults: { run: { working-directory: frontend } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
@@ -97,21 +99,21 @@ jobs:
 
   docker:
     name: images build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with: { context: ., target: runtime, push: false, cache-from: "type=gha", cache-to: "type=gha,mode=max" }
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with: { context: ./frontend, push: false, cache-from: "type=gha", cache-to: "type=gha,mode=max" }
 
   cdk:
     name: infrastructure synth
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12", cache: pip }
       - run: pip install -r infra/requirements.txt
       # Synth only. Deploying is a human decision, after the billing alarm.

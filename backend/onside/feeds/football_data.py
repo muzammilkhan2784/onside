@@ -179,6 +179,12 @@ class FootballDataAdapter:
         data = self.client.get("/matches", {"dateFrom": date_from, "dateTo": date_to}) or {}
         return [fixture_card(m) for m in data.get("matches", [])]
 
+    def matchday(self, code: str, matchday: int) -> list[dict[str, Any]]:
+        """One round of a league - used for the round after an international
+        break, which the date window cannot see yet."""
+        data = self.client.get(f"/competitions/{code}/matches", {"matchday": matchday}) or {}
+        return [fixture_card(m) for m in data.get("matches", [])]
+
     def current_competitions(self) -> list[dict[str, Any]]:
         """The plan's competitions with their current season - the menu for
         the live tables and scorers."""

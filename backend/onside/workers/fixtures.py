@@ -5,13 +5,15 @@ happening now. Every minute it refreshes:
 
 * the match window - the last three days of results and the next six days of
   fixtures, across every competition in the plan (one request);
-* every ten minutes, the ten days after that, so "next up" still has an
-  answer during an international break (one request);
+* every ten minutes, the ten days after that (one request);
+* after each competition-list refresh, the next round of each big league,
+  one league a minute - the answer to "when are they back?" during an
+  international break (one request);
 * one competition's table, round-robin (one request);
 * every other minute, one competition's top scorers (one request);
 * every six hours, the competition list itself (one request).
 
-That is at most four requests a minute against a free-tier budget of ten, so
+That is at most five requests a minute against a free-tier budget of ten, so
 a burst of retries never trips the limit. Everything lands in Redis for the
 API; the API never calls the feed on a user's request.
 
@@ -113,6 +115,8 @@ class Poller:
         self.tick_n = 0
         self.ahead: list[dict[str, Any]] = []
         self.ahead_to = ""
+        self.next_rounds: dict[str, list[dict[str, Any]]] = {}
+        self.round_queue: list[tuple[str, int]] = []
 
     def tick(self) -> dict[str, Any]:
         body = snapshot(self.adapter)
@@ -126,8 +130,18 @@ class Poller:
                 self.ahead_to = date_to
             except FeedError as exc:
                 log.warning("ahead window: %s", exc)
+        if self.round_queue:
+            code, md = self.round_queue.pop(0)
+            try:
+                self.next_rounds[code] = self.adapter.matchday(code, md)
+            except FeedError as exc:
+                log.warning("next round of %s: %s", code, exc)
         seen = {m["id"] for m in body["matches"]}
-        body["matches"] += [m for m in self.ahead if m["id"] not in seen]
+        for extra in (self.ahead, *self.next_rounds.values()):
+            for m in extra:
+                if m["id"] not in seen:
+                    seen.add(m["id"])
+                    body["matches"].append(m)
         body["matches"].sort(key=lambda m: (m["kickoffUtc"], m["competition"]["name"]))
         body["to"] = self.ahead_to or body["to"]
         publish(self.r, body)
@@ -137,6 +151,11 @@ class Poller:
                 _put(self.r, COMPETITIONS, comps)
                 self.codes = active(comps)
                 self.competitions_at = time.time()
+                self.round_queue = [
+                    (c["code"], c["season"]["matchday"] + 1)
+                    for c in comps
+                    if c["code"] in BURST and c["code"] in self.codes and c["season"]["matchday"]
+                ]
             except FeedError as exc:
                 log.warning("competitions: %s", exc)
         if self.codes and self.tick_n == 0:

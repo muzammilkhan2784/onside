@@ -143,6 +143,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--competition", type=int, default=0)
+    ap.add_argument(
+        "--match",
+        type=int,
+        action="append",
+        default=[],
+        help="build only these match ids (repeatable)",
+    )
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
@@ -152,6 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     index = match_index()
     elo = causal_elo(index)
     todo = [m for m in index if not args.competition or m["_competition_id"] == args.competition]
+    if args.match:
+        todo = [m for m in todo if m["match_id"] in set(args.match)]
     if args.limit:
         todo = todo[: args.limit]
     if not args.force:
