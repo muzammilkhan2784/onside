@@ -6,6 +6,7 @@ import { api, ApiError } from "../lib/api";
 import { longDate } from "../lib/format";
 import type { ReplayStatus } from "../lib/types";
 import { CompetitionMark, Crest, ReplayBadge } from "../components/Football";
+import { useFeatures } from "../hooks/useFeatures";
 
 /** Finals and classics that make good replays. Every id is in the archive. */
 const PICKS = [
@@ -56,12 +57,37 @@ function Running({ r, onCommand }: { r: ReplayStatus; onCommand: (cmd: "pause" |
   );
 }
 
+/** The free-tier deployment has no Redis and no always-on workers, so no
+ *  replays. Say so plainly, and say where they do run. */
+function ReplaysOff() {
+  return (
+    <section className="turf relative overflow-hidden rounded-3xl border border-rule p-6 sm:p-8">
+      <ReplayBadge status="idle" className="mb-3" />
+      <h1 className="font-display text-4xl uppercase leading-none sm:text-6xl">Replay room</h1>
+      <p className="mt-3 max-w-2xl text-[15px] text-[#CFE0D4]">
+        Replays are switched off on this copy of Onside. It runs on AWS's always-free services - Lambda, DynamoDB
+        and CloudFront - and a replay needs the parts of the full deployment that run all the time: Redis Streams,
+        the ingest workers and a WebSocket to your browser.
+      </p>
+      <p className="mt-2 text-[13px] text-mute">
+        Everything else is the same code: the archive, today's real fixtures and tables, and the social feed.
+        Running Onside yourself takes one command, and there the replay room works.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <a className="btn btn-replay" href="https://github.com/muzammilkhan2784/onside#running-it">Run it with Docker →</a>
+        <Link className="btn" to="/news">Match reports →</Link>
+      </div>
+    </section>
+  );
+}
+
 /** The replay room: re-run any archived match minute by minute, clearly
  *  labelled as a replay, through the same pipeline a live feed would use. */
 export default function Replays() {
   const qc = useQueryClient();
   const nav = useNavigate();
-  const status = useQuery({ queryKey: ["replays"], queryFn: api.replayStatus, refetchInterval: 2000 });
+  const features = useFeatures();
+  const status = useQuery({ queryKey: ["replays"], queryFn: api.replayStatus, refetchInterval: 2000, enabled: features?.replays === true });
   const [pick, setPick] = useState<number>(PICKS[0].id);
   const [custom, setCustom] = useState("");
   const [speed, setSpeed] = useState(60);
@@ -76,6 +102,7 @@ export default function Replays() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["replays"] }),
   });
   const rows = status.data ?? [];
+  if (features && !features.replays) return <ReplaysOff />;
 
   return (
     <div className="space-y-6">

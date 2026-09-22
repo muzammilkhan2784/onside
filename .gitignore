@@ -17,6 +17,8 @@ frontend/dist/
 demo/index.html
 
 infra/cdk.out/
+# Written by CDK lookups; it names the AWS account, which a public repo need not.
+infra/cdk.context.json
 .env
 
 # Local secrets and tooling - never committed

@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { longDate } from "../lib/format";
 import type { MatchState } from "../lib/types";
 import { useLiveMatch, type Connection } from "../hooks/useLiveMatch";
+import { useFeatures } from "../hooks/useFeatures";
 import WinProbabilityChart from "../components/WinProbabilityChart";
 import { PassNetworkView, ShotMap } from "../components/Pitch";
 import { ReportView, StatBars, Timeline } from "../components/MatchParts";
@@ -274,6 +275,7 @@ export default function Match() {
   const [params, setParams] = useSearchParams();
   const tab = (TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "summary";
   const isLive = mid.startsWith("live-");
+  const replays = useFeatures()?.replays === true;
 
   const starting = isLive && params.get("starting") === "1";
   // A replay that was just requested has no document yet (or a stale one from
@@ -365,7 +367,7 @@ export default function Match() {
           </button>
         ))}
       </nav>
-      {!s.live && <WatchReplay id={s.id} />}
+      {!s.live && replays && <WatchReplay id={s.id} />}
       </div>
 
       {tab === "summary" && (

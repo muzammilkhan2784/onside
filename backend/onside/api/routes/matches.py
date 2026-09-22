@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Query
 
+from ...archive.duck import is_compacted
 from ...archive.duck import query as duck_query
 from ...config import settings
 from ...domain.match_state import project_until
@@ -217,11 +218,15 @@ def events(
         deps.match_state(match_id)  # 404
         raise ApiError(404, "events_not_found", "This match has no archived events.")
     root = settings().archive_uri.rstrip("/")
-    path = (
-        f"{root}/competition_id={card['competition']['id']}/season_id={card['season']['id']}"
-        f"/match_id={match_id}.parquet"
-    )
-    where, params = ["1=1"], []
+    if is_compacted(root):  # one file for the whole archive: filter it to this match
+        source, where, params = "events", ["match_id = ?"], [int(match_id)]
+    else:  # a file per match: read just that one
+        source, where, params = (
+            f"read_parquet('{root}/competition_id={card['competition']['id']}"
+            f"/season_id={card['season']['id']}/match_id={match_id}.parquet')",
+            ["1=1"],
+            [],
+        )
     if type:
         where.append("type = ?")
         params.append(type)
@@ -235,11 +240,9 @@ def events(
         where.append("coalesce(shot_xg, 0) >= ?")
         params.append(min_xg)
     cond = " AND ".join(where)
-    total = duck_query(f"SELECT count(*) AS n FROM read_parquet('{path}') WHERE {cond}", params)[0][
-        "n"
-    ]
+    total = duck_query(f"SELECT count(*) AS n FROM {source} WHERE {cond}", params)[0]["n"]
     rows = duck_query(
-        f"SELECT * FROM read_parquet('{path}') WHERE {cond} ORDER BY idx LIMIT ? OFFSET ?",
+        f"SELECT * FROM {source} WHERE {cond} ORDER BY idx LIMIT ? OFFSET ?",
         [*params, limit, offset],
     )
     return {

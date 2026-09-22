@@ -142,8 +142,8 @@ export default function Buzz() {
               <div className="p-5 text-[13.5px] text-mute">
                 <p className="font-bold text-chalk">No posts here yet.</p>
                 <p className="mt-1">{topic !== "all"
-                  ? "Nobody on the connected networks has posted about this yet - posts are collected every two minutes, and match chatter builds towards kick-off."
-                  : "The social worker collects posts every two minutes. If this stays empty, check the sources panel."}</p>
+                  ? "Nobody on the connected networks has posted about this yet - posts are collected every few minutes, and match chatter builds towards kick-off."
+                  : "The social worker collects posts every few minutes. If this stays empty, check the sources panel."}</p>
               </div>
             ) : (
               <>

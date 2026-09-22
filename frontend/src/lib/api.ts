@@ -1,6 +1,6 @@
 import type {
   ApiErrorBody, Competition, Home, LeaderboardRow, MatchCard, MatchState, Page, PassNetwork,
-  CurrentCompetition, CurrentScorers, CurrentStandings, Network, Player, PlayerSeason, ReplayStatus, Report,
+  CurrentCompetition, CurrentScorers, CurrentStandings, Features, Network, Player, PlayerSeason, ReplayStatus, Report,
   SearchResult, Shot, SocialOverview, SocialPost, Table, Team, Today, WpPoint,
 } from "./types";
 
@@ -50,6 +50,7 @@ export const api = {
   social: (p: { topic?: string; network?: Network | ""; lang?: string; before?: number | null; limit?: number } = {}) =>
     request<{ items: SocialPost[]; next: number | null }>(`/api/social${q({ topic: p.topic, network: p.network, lang: p.lang, before: p.before, limit: p.limit ?? 30 })}`),
   socialOverview: () => request<SocialOverview>("/api/social/overview"),
+  features: () => request<Features>("/api/features"),
   feed: (p: { tag?: string; cursor?: string | null; limit?: number } = {}) =>
     request<Page<MatchCard>>(`/api/feed${q({ tag: p.tag, cursor: p.cursor, limit: p.limit ?? 24 })}`),
   collection: (id: string) => request<{ id: string; title: string; blurb: string; matches: MatchCard[] }>(`/api/collections/${id}`),

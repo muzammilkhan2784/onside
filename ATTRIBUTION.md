@@ -52,8 +52,9 @@ path is covered by the contract tests.
 
 ## Social posts
 
-The Buzz dashboard shows public posts from Bluesky and Mastodon (and Reddit or X
-when configured). Every post is shown with its author's name and handle and a
+The Buzz dashboard shows public posts from Bluesky, Mastodon and Reddit's
+r/soccer (and X when configured). Reddit posts come from the subreddit's
+public feed and are shown as their titles, with the linked article. Every post is shown with its author's name and handle and a
 link to the original, as text, unedited. Onside keeps a post for three days and
 only what it displays. It skips posts marked sensitive, replies, and anything
 from authors who opted out of being shown to logged-out viewers (Bluesky's
@@ -70,7 +71,8 @@ real badge.
 ## Libraries
 
 FastAPI, Uvicorn, Pydantic, boto3, redis-py, DuckDB, PyArrow, LightGBM,
-scikit-learn, NumPy, httpx, pytest, Hypothesis, moto, fakeredis, React,
+scikit-learn, NumPy, httpx, defusedxml, pytest, Hypothesis, moto, fakeredis,
+the AWS CDK and the AWS Lambda Web Adapter, React,
 Vite, Tailwind CSS, TanStack Query, Recharts, Vitest and Testing Library, each
 under its own licence.
 

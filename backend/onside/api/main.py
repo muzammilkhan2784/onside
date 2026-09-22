@@ -43,9 +43,12 @@ Event data: StatsBomb Open Data.
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    await ws.manager.start()
+    # WebSockets ride on Redis pub/sub; without Redis there is nothing to relay.
+    if settings().realtime:
+        await ws.manager.start()
     yield
-    await ws.manager.stop()
+    if settings().realtime:
+        await ws.manager.stop()
 
 
 def create_app() -> FastAPI:
@@ -114,9 +117,10 @@ def create_app() -> FastAPI:
         ops.replay,
         ops.ops,
         lite.router,
-        ws.router,
     ):
         app.include_router(r)
+    if settings().realtime:
+        app.include_router(ws.router)
     return app
 
 

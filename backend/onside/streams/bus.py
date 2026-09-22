@@ -64,6 +64,12 @@ def playing_replays(r: redis.Redis | None = None) -> set[str]:
 
 @lru_cache(maxsize=1)
 def sync_client() -> redis.Redis:
+    """Redis - or, in the free-tier AWS deployment, the same commands on a
+    DynamoDB table (store/kv.py). Callers cannot tell the difference."""
+    if settings().kv == "dynamo":
+        from ..store.kv import DynamoKV
+
+        return DynamoKV()  # type: ignore[return-value]
     return redis.Redis.from_url(settings().redis_url, decode_responses=True)
 
 

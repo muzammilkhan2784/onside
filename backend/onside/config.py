@@ -50,6 +50,11 @@ class Settings:
         default_factory=lambda: os.environ.get("FOOTBALL_DATA_API_KEY", "")
     )
     api_football_key: str = field(default_factory=lambda: os.environ.get("API_FOOTBALL_KEY", ""))
+    # Where the fast state lives. "redis" everywhere except the free-tier AWS
+    # deployment, which has no Redis and keeps it in a DynamoDB table instead
+    # (store/kv.py) - and so runs without replays and WebSockets.
+    kv: str = field(default_factory=lambda: _env("ONSIDE_KV", "redis"))
+    kv_table: str = field(default_factory=lambda: _env("ONSIDE_KV_TABLE", "onside-kv"))
     # Social sources. Mastodon needs nothing; the rest switch on with a key.
     mastodon_instance: str = field(
         default_factory=lambda: _env("MASTODON_INSTANCE", "https://mastodon.social")
@@ -75,6 +80,12 @@ class Settings:
             _env("ONSIDE_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
         )
     )
+
+    @property
+    def realtime(self) -> bool:
+        """Replays, the live pipeline and WebSockets need Redis Streams and
+        pub/sub - so they exist exactly where Redis does."""
+        return self.kv == "redis"
 
     @property
     def processed_dir(self) -> Path:

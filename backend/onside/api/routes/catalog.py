@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
+from ...config import settings
 from ...store import repo
 from ...streams import bus
 from .. import deps
@@ -21,6 +22,8 @@ def _live_cards() -> list[dict[str, Any]]:
     """Replays that are actually playing right now. A replay that finished or
     was stopped keeps its document (so its page still works) but is no longer
     listed - a match from 2022 must never look like it is still going on."""
+    if not settings().realtime:
+        return []  # no replays in this deployment
     try:
         playing = bus.playing_replays()
         return [c for c in repo.live_matches() if c.get("id") in playing]

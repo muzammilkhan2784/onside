@@ -4,6 +4,7 @@
     social:all              sorted set of every post id by time
     social:net:<network>    ... by network
     social:topic:<topic>    ... by fixture id or competition code
+    social:tagged           "<hashtag>#<post id>" by time, for the trends panel
     social:topics           the current topics (labels for the dashboard)
     social:sources          each source's state, as the worker last saw it
 
@@ -46,9 +47,12 @@ def fresh(r: Any, posts: list[Post]) -> list[Post]:
     """Drop repeats and cap any one account at eight posts every six hours,
     so a single busy bot cannot bury everyone else."""
     out: list[Post] = []
-    for p in posts:
-        if r.exists(post_key(p["id"])):
-            out.append(p)  # already stored; re-saving refreshes its topics
+    # One round trip to learn which posts are already stored. Those are left
+    # alone: every cycle finds the same posts again, and rewriting them would
+    # cost a write each for nothing.
+    stored = r.mget([post_key(p["id"]) for p in posts]) if posts else []
+    for p, already in zip(posts, stored, strict=True):
+        if already is not None:
             continue
         if not r.set(f"social:fp:{fingerprint(p)}", p["id"], nx=True, ex=MAX_AGE_S):
             continue
@@ -83,8 +87,14 @@ def save(r: Any, posts: list[Post]) -> int:
         for t in p.get("topics", []):
             pipe.zadd(f"social:topic:{t}", {p["id"]: p["ts"]})
             touched.add(f"social:topic:{t}")
+        # Hashtags get an index of their own, so the trends panel counts
+        # small index entries instead of loading every recent post.
+        tags = {tag.lower() for tag in HASHTAG.findall(p["text"])}
+        if tags:
+            pipe.zadd("social:tagged", {f"{tag}#{p['id']}": p["ts"] for tag in tags})
+            touched.add("social:tagged")
     for key in touched:
-        keep = KEEP_ALL if key == "social:all" else KEEP_EACH
+        keep = KEEP_ALL if key in ("social:all", "social:tagged") else KEEP_EACH
         pipe.zremrangebyrank(key, 0, -keep - 1)
         pipe.zremrangebyscore(key, "-inf", time.time() - MAX_AGE_S)
     pipe.execute()
@@ -130,11 +140,11 @@ def page(
     out: list[Post] = []
     scanned, chunk = 0, 100
     while len(out) < limit and scanned < 1500:
-        ids = r.zrevrangebyscore(key, high, "-inf", start=0, num=chunk)
-        if not ids:
+        rows = r.zrevrangebyscore(key, high, "-inf", start=0, num=chunk, withscores=True)
+        if not rows:
             break
-        scanned += len(ids)
-        for p in _load(r, ids):
+        scanned += len(rows)
+        for p in _load(r, [member for member, _ in rows]):
             if network and p["network"] != network:
                 continue
             if lang and p.get("lang") and not p["lang"].startswith(lang):
@@ -142,16 +152,17 @@ def page(
             out.append(p)
             if len(out) == limit:
                 break
-        last = r.zscore(key, ids[-1])
-        high = f"({last}"
-        if len(ids) < chunk:
+        high = f"({rows[-1][1]}"
+        if len(rows) < chunk:
             break
     nxt = out[-1]["ts"] if len(out) == limit else None
     return out, nxt
 
 
 def overview(r: Any) -> dict[str, Any]:
-    """Everything the dashboard's side panels need, from the newest posts."""
+    """Everything the dashboard's side panels need. Only index entries are
+    read - ids, times and hashtags - never the posts themselves: a post id
+    starts with its network, and that is all the volume chart needs."""
     now = time.time()
     sources = {k: json.loads(v) for k, v in (r.hgetall("social:sources") or {}).items()}
     for name in NETWORKS:
@@ -159,19 +170,17 @@ def overview(r: Any) -> dict[str, Any]:
     topics = json.loads(r.get("social:topics") or "[]")
     for t in topics:
         t["posts"] = int(r.zcount(f"social:topic:{t['id']}", now - 24 * 3600, "+inf"))
-    recent = _load(r, r.zrevrangebyscore("social:all", "+inf", now - 12 * 3600, start=0, num=1000))
-    tags = Counter(
-        tag.lower()
-        for p in recent
-        if now - p["ts"] < 6 * 3600
-        for tag in HASHTAG.findall(p["text"])
+    recent = r.zrevrangebyscore(
+        "social:all", "+inf", now - 12 * 3600, start=0, num=KEEP_ALL, withscores=True
     )
+    tagged = r.zrevrangebyscore("social:tagged", "+inf", now - 6 * 3600, start=0, num=KEEP_ALL)
+    tags = Counter(entry.split("#", 1)[0] for entry in tagged)
     hours: list[dict[str, Any]] = []
     for h in range(11, -1, -1):
         lo, hi = now - (h + 1) * 3600, now - h * 3600
         row: dict[str, Any] = {"hoursAgo": h}
         for n in NETWORKS:
-            row[n] = sum(1 for p in recent if p["network"] == n and lo <= p["ts"] < hi)
+            row[n] = sum(1 for pid, ts in recent if pid.startswith(f"{n}:") and lo <= ts < hi)
         hours.append(row)
     return {
         "sources": sources,

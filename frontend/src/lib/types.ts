@@ -215,6 +215,14 @@ export interface CurrentScorers {
           goals: number; assists: number | null; penalties: number | null }[];
 }
 
+/** GET /api/features: what this deployment can do. */
+export interface Features {
+  realtime: boolean;
+  replays: boolean;
+  current: boolean;
+  deployment: "full" | "free-tier";
+}
+
 export type Network = "bluesky" | "mastodon" | "reddit" | "x";
 
 export interface SocialPost {

@@ -105,8 +105,15 @@ def publish(r: Any, body: dict[str, Any]) -> None:
     _put(r, KEY, body)
 
 
+STATE = "fd:poller"
+
+
 class Poller:
-    """One tick a minute, each spending at most three requests."""
+    """One tick a minute, each spending at most five requests.
+
+    Its memory - where it is in the rotations, the far window, the next rounds
+    - lives in the store, not in the process, so a Lambda that starts cold
+    carries on exactly where the last invocation stopped."""
 
     def __init__(self, adapter: FootballDataAdapter, r: Any) -> None:
         self.adapter, self.r = adapter, r
@@ -117,11 +124,42 @@ class Poller:
         self.ahead_to = ""
         self.next_rounds: dict[str, list[dict[str, Any]]] = {}
         self.round_queue: list[tuple[str, int]] = []
+        self._restore()
+
+    def _restore(self) -> None:
+        raw = self.r.get(STATE)
+        if not raw:
+            return
+        st = json.loads(raw)
+        self.tick_n = st.get("tick", 0)
+        self.codes = st.get("codes", [])
+        self.competitions_at = st.get("competitionsAt", 0.0)
+        self.ahead = st.get("ahead", [])
+        self.ahead_to = st.get("aheadTo", "")
+        self.next_rounds = st.get("nextRounds", {})
+        self.round_queue = [(c, int(md)) for c, md in st.get("roundQueue", [])]
+
+    def _persist(self) -> None:
+        state = {
+            "tick": self.tick_n,
+            "codes": self.codes,
+            "competitionsAt": self.competitions_at,
+            "ahead": self.ahead,
+            "aheadTo": self.ahead_to,
+            "nextRounds": self.next_rounds,
+            "roundQueue": self.round_queue,
+        }
+        self.r.set(STATE, json.dumps(state, separators=(",", ":")))
 
     def tick(self) -> dict[str, Any]:
         body = snapshot(self.adapter)
         if not body["ok"]:
-            publish(self.r, body)
+            last = json.loads(self.r.get(KEY) or "{}")
+            if not last.get("ok"):
+                publish(self.r, body)
+            # Otherwise one failed request (a timeout, a rate limit) leaves the
+            # last good fixtures in place. Their `fetchedAt` stays old, so the
+            # API marks them stale after five minutes rather than blanking them.
             return body
         if self.tick_n % AHEAD_EVERY_TICKS == 0:
             date_from, date_to = ahead_window()
@@ -175,6 +213,7 @@ class Poller:
                 code = self.codes[(self.tick_n // 2) % len(self.codes)]
                 self._refresh(scorers_key(code), lambda: self.adapter.scorers(code))
         self.tick_n += 1
+        self._persist()
         return body
 
     def _refresh(self, key: str, fetch: Any) -> None:

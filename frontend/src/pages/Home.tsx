@@ -9,6 +9,7 @@ import { FixtureRow, StoryCard } from "../components/MatchCard";
 import { CompetitionMark, ReplayBadge } from "../components/Football";
 import { CurrentOff, FixtureList, FreshnessNote, MatchdayHero, PRIORITY, StandingsTable, usable, useToday } from "../components/Current";
 import { PostCard } from "../components/Social";
+import { useFeatures } from "../hooks/useFeatures";
 import { ErrorState, PageSkeleton, Skeleton } from "../components/States";
 
 // ------------------------------------------------------------------ now
@@ -80,6 +81,7 @@ function CollectionRail({ c }: { c: Collection }) {
 }
 
 function ArchiveIntro({ archive }: { archive: HomeData["archive"] }) {
+  const replays = useFeatures()?.replays !== false;
   return (
     <section className="grid gap-5 rounded-3xl border border-rule bg-deck/60 p-6 lg:grid-cols-[1.4fr_1fr]">
       <div>
@@ -87,13 +89,13 @@ function ArchiveIntro({ archive }: { archive: HomeData["archive"] }) {
         <h2 className="font-display text-3xl uppercase leading-none sm:text-4xl">Every match. Every event. <span className="text-grass">Every correction.</span></h2>
         <p className="mt-3 max-w-xl text-[14px] text-mute">
           {compact(archive.matches)} finished matches from StatsBomb's open data, each with its full event log, a win-probability
-          model, a written report and a shot map. Nothing here is live - but any of it can be{" "}
-          <Link to="/replays" className="font-bold text-replay">replayed</Link>, minute by minute, with a VAR check that corrects the score in front of you.
+          model, a written report and a shot map. Nothing here is live{replays ? <> - but any of it can be{" "}
+          <Link to="/replays" className="font-bold text-replay">replayed</Link>, minute by minute, with a VAR check that corrects the score in front of you</> : ""}.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link to="/news" className="btn">Match reports →</Link>
           <Link to="/competitions" className="btn">Browse competitions →</Link>
-          <Link to="/replays" className="btn btn-replay">Replay room →</Link>
+          {replays && <Link to="/replays" className="btn btn-replay">Replay room →</Link>}
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-2 self-end">

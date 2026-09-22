@@ -32,3 +32,26 @@ USER root
 COPY backend/tests /app/tests
 RUN pip install "pytest>=8" "hypothesis>=6" "moto[dynamodb]>=5" "fakeredis>=2.26" ruff mypy
 USER onside
+
+# ---------------------------------------------------------------------------
+# The free-tier AWS deployment: the same code on AWS Lambda.
+#   docker build --target lambda .   (the OnsideFree CDK stack builds this)
+# The Lambda Web Adapter turns invocations into HTTP requests to the server
+# the image starts, so the API runs unchanged. The Parquet archive ships in
+# the image, compacted into one file sorted by player (archive/compact.py):
+# on Lambda's single vCPU that is 10-25x faster than a file per match, and
+# far faster than reading S3.
+FROM public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0 AS lambda-adapter
+
+FROM runtime AS archive-compact
+COPY data/archive/events /tmp/events
+RUN python -m onside.archive.compact /tmp/events /tmp/events.parquet
+
+FROM runtime AS lambda
+COPY --from=lambda-adapter /lambda-adapter /opt/extensions/lambda-adapter
+COPY --from=archive-compact /tmp/events.parquet /app/archive/events.parquet
+# Lambda's filesystem is read-only apart from /tmp.
+ENV ONSIDE_ENV=aws ONSIDE_KV=dynamo ONSIDE_ARCHIVE_URI=/app/archive/events.parquet \
+    ONSIDE_DATA_DIR=/tmp/onside ONSIDE_DUCKDB_TMP=/tmp/duckdb HOME=/tmp \
+    PORT=8080 AWS_LWA_READINESS_CHECK_PATH=/api/features
+CMD ["python", "-m", "onside.serverless", "api"]

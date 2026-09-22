@@ -1,4 +1,7 @@
-data/
+# Only the Parquet archive, which the Lambda image carries (Dockerfile, target
+# lambda). Raw downloads and built documents never enter a build.
+data/*
+!data/archive
 **/node_modules
 **/__pycache__
 **/.pytest_cache

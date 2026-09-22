@@ -122,3 +122,44 @@ def test_the_poller_stays_inside_the_free_tier_budget():
     snap = json.loads(redis_fake.get(fixtures.KEY))
     assert any(m["id"] == "fd-PL-6" for m in snap["matches"])  # after the break, still visible
     assert sum(c.startswith("matches") for c in a.calls) == 5  # the far window is not re-fetched every minute
+
+
+def test_a_cold_start_carries_on_where_the_last_run_stopped():
+    import fakeredis
+
+    r = fakeredis.FakeRedis(decode_responses=True)
+    a = CountingAdapter()
+    fixtures.Poller(a, r).tick()
+    first = len(a.calls)
+    a.calls.clear()
+    fixtures.Poller(a, r).tick()  # a fresh process, as a Lambda cold start is
+    assert not any(c.startswith("competitions") for c in a.calls)  # no second cold-start burst
+    assert len(a.calls) < first
+    assert json.loads(r.get(fixtures.STATE))["tick"] == 2
+
+
+def test_one_failed_request_does_not_blank_the_fixtures():
+    import fakeredis
+
+    from onside.feeds.http import FeedError
+
+    class Flaky(CountingAdapter):
+        down = False
+
+        def matches_between(self, a, b):
+            if self.down:
+                raise FeedError("football-data.org timed out")
+            return super().matches_between(a, b)
+
+    r = fakeredis.FakeRedis(decode_responses=True)
+    a = Flaky()
+    fixtures.Poller(a, r).tick()
+    good = json.loads(r.get(fixtures.KEY))
+    a.down = True
+    body = fixtures.Poller(a, r).tick()
+    assert not body["ok"]
+    assert json.loads(r.get(fixtures.KEY)) == good  # still the last good list, still its old time
+
+    empty = fakeredis.FakeRedis(decode_responses=True)
+    fixtures.Poller(a, empty).tick()  # nothing good yet: the failure itself is shown
+    assert json.loads(empty.get(fixtures.KEY))["ok"] is False

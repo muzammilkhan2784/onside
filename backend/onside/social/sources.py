@@ -4,7 +4,8 @@
   of search indexing (`noindex`) or discovery are skipped.
 * Bluesky - full-text search, which needs a signed-in session (a free app
   password). Authors who opted out of logged-out viewers are skipped.
-* Reddit - r/soccer's newest posts via an approved, app-only OAuth client.
+* Reddit - r/soccer's newest posts: the public RSS feed with no key, or the
+  API (scores and comment counts) once Reddit approves an app.
 * X - recent search, billed per post read. Off unless a token *and* a daily
   read budget are set; the budget is enforced before every request.
 
@@ -14,7 +15,9 @@ Every source is read-only and keeps only what the feed shows.
 from __future__ import annotations
 
 import datetime as dt
+import html
 import logging
+import re
 import time
 from typing import Any
 
@@ -252,7 +255,16 @@ class Bluesky:
 
 
 class Reddit:
+    """r/soccer's newest posts. Two modes, one shape out:
+
+    * no key - the subreddit's public Atom feed, which Reddit publishes for
+      exactly this kind of reading: title, author, link, time, thumbnail;
+    * with an approved app - the OAuth API, which adds scores and comment
+      counts and marks NSFW posts.
+    """
+
     name = "reddit"
+    FEED = "https://www.reddit.com/r/soccer/new/.rss"
 
     def __init__(
         self,
@@ -266,14 +278,18 @@ class Reddit:
         self.http = http or _client()
         self._token, self._exp = "", 0.0
 
+    @property
+    def api(self) -> bool:
+        return bool(self.client_id and self.secret)
+
     def state(self) -> tuple[str, str]:
-        if not (self.client_id and self.secret):
-            return (
-                "needs_key",
-                "Reddit approves every new API app by hand. Once approved, set "
-                "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET.",
-            )
-        return "on", "r/soccer's newest posts, read-only."
+        if self.api:
+            return "on", "r/soccer's newest posts through the Reddit API, read-only."
+        return (
+            "on",
+            "r/soccer's public RSS feed - no key needed. With an approved Reddit app "
+            "(REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET) it adds scores and comment counts.",
+        )
 
     def _auth(self) -> str:
         if self._token and time.time() < self._exp - 60:
@@ -285,24 +301,78 @@ class Reddit:
         )
         r.raise_for_status()
         body = r.json()
-        self._token, self._exp = (
-            body["access_token"],
-            time.time() + float(body.get("expires_in", 3600)),
-        )
+        self._token = body["access_token"]
+        self._exp = time.time() + float(body.get("expires_in", 3600))
         return self._token
 
     def collect(self, plan: Plan) -> list[Post]:
+        posts = self._from_api() if self.api else self._from_feed()
+        return [kept for p in posts if (kept := _keep(p, plan, ""))]
+
+    def _from_api(self) -> list[Post]:
         r = self.http.get(
             "https://oauth.reddit.com/r/soccer/new",
             params={"limit": 100, "raw_json": 1},
             headers={"Authorization": f"Bearer {self._auth()}"},
         )
         r.raise_for_status()
-        out = []
-        for child in r.json().get("data", {}).get("children", []):
-            post = self.normalise(child.get("data") or {})
-            if post and (kept := _keep(post, plan, "")):
-                out.append(kept)
+        return [
+            post
+            for child in r.json().get("data", {}).get("children", [])
+            if (post := self.normalise(child.get("data") or {}))
+        ]
+
+    def _from_feed(self) -> list[Post]:
+        r = self.http.get(self.FEED, params={"limit": 50})
+        r.raise_for_status()
+        return self.parse_feed(r.text)
+
+    @staticmethod
+    def parse_feed(xml: str) -> list[Post]:
+        """The Atom feed as posts. Parsed with defusedxml: a feed is input from
+        the internet, and entity-expansion tricks must not reach the parser."""
+        from defusedxml import ElementTree
+
+        ns = {"a": "http://www.w3.org/2005/Atom", "media": "http://search.yahoo.com/mrss/"}
+        out: list[Post] = []
+        for e in ElementTree.fromstring(xml).findall("a:entry", ns):
+            title = (e.findtext("a:title", "", ns) or "").strip()
+            link = e.find("a:link", ns)
+            url = link.get("href", "") if link is not None else ""
+            author = (e.findtext("a:author/a:name", "", ns) or "").strip()
+            published = e.findtext("a:published", "", ns) or e.findtext("a:updated", "", ns) or ""
+            if not (title and url and author):
+                continue
+            # The linked article, when the post is a link to one.
+            content = e.findtext("a:content", "", ns) or ""
+            outbound = [
+                u
+                for u in re.findall(r'href="(https?://[^"]+)"', html.unescape(content))
+                if "reddit.com" not in u and "redd.it" not in u
+            ]
+            thumb = e.find("media:thumbnail", ns)
+            handle = author if author.startswith("/u/") else f"/u/{author}"
+            out.append(
+                {
+                    "id": f"reddit:{e.findtext('a:id', '', ns) or url}",
+                    "network": "reddit",
+                    "url": url,
+                    "author": {
+                        "name": handle.removeprefix("/"),
+                        "handle": handle.removeprefix("/"),
+                        "avatar": "",
+                        "url": (e.findtext("a:author/a:uri", "", ns) or "").strip(),
+                    },
+                    "text": title + (f"\n\n{outbound[0]}" if outbound else ""),
+                    "createdAt": published,
+                    "ts": parse_time(published),
+                    "lang": "en",
+                    "metrics": {},
+                    "media": [{"thumb": thumb.get("url", ""), "alt": title}]
+                    if thumb is not None and thumb.get("url", "").startswith("https://")
+                    else [],
+                }
+            )
         return out
 
     @staticmethod
@@ -314,7 +384,7 @@ class Reddit:
         created = float(d.get("created_utc") or 0)
         thumb = d.get("thumbnail") or ""
         return {
-            "id": f"reddit:{d['id']}",
+            "id": f"reddit:t3_{d['id']}",
             "network": "reddit",
             "url": f"https://www.reddit.com{d.get('permalink', '')}",
             "author": {

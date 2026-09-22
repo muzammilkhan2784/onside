@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
 
 from ...store import client as store_client
@@ -15,7 +15,22 @@ from ..errors import ApiError, not_found
 from ..metrics import METRICS
 from ..schemas import ReplayCommand, ReplayRequest, ReplayStatus
 
-replay = APIRouter(prefix="/api/replay", tags=["replay"])
+
+def _realtime_only() -> None:
+    """Replays run on Redis Streams and long-running workers. The free-tier
+    deployment has neither, and says so rather than failing obscurely."""
+    if not store_client.settings().realtime:
+        raise ApiError(
+            503,
+            "replays_unavailable",
+            "Replays need the full deployment - Redis Streams and always-on workers - and "
+            "this one is the free-tier version, which serves the archive, current football "
+            "and the social feed. Run Onside with docker compose to watch replays.",
+            {"feature": "replays"},
+        )
+
+
+replay = APIRouter(prefix="/api/replay", tags=["replay"], dependencies=[Depends(_realtime_only)])
 ops = APIRouter(tags=["ops"])
 
 
@@ -113,11 +128,12 @@ def status() -> list[dict[str, Any]]:
 def health() -> dict[str, Any]:
     checks: dict[str, str] = {}
     t0 = time.perf_counter()
+    store = "redis" if store_client.settings().realtime else "kv"
     try:
         bus.sync_client().ping()
-        checks["redis"] = "ok"
+        checks[store] = "ok"
     except Exception as exc:  # noqa: BLE001
-        checks["redis"] = f"unavailable: {type(exc).__name__}"
+        checks[store] = f"unavailable: {type(exc).__name__}"
     try:
         store_client.resource().meta.client.describe_table(TableName=store_client.settings().table)
         checks["dynamodb"] = "ok"
@@ -128,6 +144,33 @@ def health() -> dict[str, Any]:
         "status": "ok" if ok else "degraded",
         "checks": checks,
         "ms": round((time.perf_counter() - t0) * 1000, 1),
+    }
+
+
+def _fixtures_on() -> bool:
+    """Whether the fixtures worker is running with a key - from what it last
+    stored, since the API itself is never given the feed's key."""
+    import json
+
+    from ...workers import fixtures
+
+    try:
+        raw = bus.sync_client().get(fixtures.KEY)
+    except Exception:  # noqa: BLE001 - a store hiccup is not a reason to fail this
+        return False
+    return bool(raw) and bool(json.loads(raw).get("enabled"))
+
+
+@ops.get("/api/features", summary="What this deployment can do")
+def features() -> dict[str, Any]:
+    """The web app asks once and shows only what works here: the free-tier
+    deployment has no replays and no WebSockets; everything else is the same."""
+    s = store_client.settings()
+    return {
+        "realtime": s.realtime,
+        "replays": s.realtime,
+        "current": _fixtures_on(),
+        "deployment": "full" if s.realtime else "free-tier",
     }
 
 

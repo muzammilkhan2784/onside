@@ -142,9 +142,11 @@ export function useLiveMatch(matchId: string | undefined, enabled: boolean, star
   return { connection, flash, dismiss: () => setFlash(null) };
 }
 
-/** Score changes across every live match, for the ticker. */
-export function useFeedSocket(onScore: (card: unknown) => void) {
+/** Score changes across every live match, for the ticker. Off where the
+ *  deployment has no WebSockets (the free tier). */
+export function useFeedSocket(onScore: (card: unknown) => void, enabled = true) {
   useEffect(() => {
+    if (!enabled) return;
     let ws: WebSocket | null = null;
     let stopped = false;
     let attempt = 0;
@@ -159,5 +161,5 @@ export function useFeedSocket(onScore: (card: unknown) => void) {
     };
     connect();
     return () => { stopped = true; clearTimeout(timer); ws?.close(); };
-  }, [onScore]);
+  }, [onScore, enabled]);
 }

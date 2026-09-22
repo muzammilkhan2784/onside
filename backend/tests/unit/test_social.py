@@ -103,6 +103,7 @@ def test_bluesky_respects_the_logged_out_opt_out_and_content_labels():
 
 def test_reddit_skips_nsfw_and_stickied_posts():
     d = {"id": "a", "title": "Match Thread: Arsenal v Chelsea", "permalink": "/r/soccer/a", "created_utc": 1}
+    assert Reddit.normalise(d)["id"] == "reddit:t3_a"  # same id as the RSS feed gives
     assert Reddit.normalise(d) is not None
     assert Reddit.normalise({**d, "over_18": True}) is None
     assert Reddit.normalise({**d, "stickied": True}) is None
@@ -112,7 +113,8 @@ def test_reddit_skips_nsfw_and_stickied_posts():
 
 def test_sources_without_credentials_say_what_they_need():
     assert Bluesky(handle="", password="").state()[0] == "needs_key"
-    assert Reddit(client_id="", secret="").state()[0] == "needs_key"
+    assert Reddit(client_id="", secret="").state()[0] == "on"  # public RSS, no key needed
+    assert "API" in Reddit(client_id="id", secret="s").state()[1]
     assert X(token="", daily_budget=100).state()[0] == "paid_off"
     assert X(token="t", daily_budget=0).state()[0] == "paid_off"  # a token alone spends nothing
     assert Mastodon().state()[0] == "on"
@@ -191,3 +193,45 @@ def test_a_look_alike_competition_is_not_the_real_one():
     plan = topics.plan([fx("fd-4", "Arsenal", "Leeds")])
     assert classify("FULL TIME: HFX Wanderers 4-1 Inter Toronto - Canadian Premier League", plan.topics) == []
     assert classify("The Premier League title race is on", plan.topics) == ["PL"]
+
+
+FEED = """<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+<entry><author><name>/u/fan</name><uri>https://www.reddit.com/user/fan</uri></author>
+<content type="html">&lt;a href=&quot;https://www.bbc.co.uk/sport/football/1&quot;&gt;[link]&lt;/a&gt; &lt;a href=&quot;https://www.reddit.com/r/soccer/comments/x/&quot;&gt;[comments]&lt;/a&gt;</content>
+<id>t3_x</id><link href="https://www.reddit.com/r/soccer/comments/x/" /><published>2026-09-22T07:11:00+00:00</published>
+<title>Arsenal 2-0 Chelsea - post-match thread</title><media:thumbnail url="https://b.thumbs.redditmedia.com/t.jpg" /></entry>
+</feed>"""
+
+
+def test_the_reddit_feed_becomes_posts_with_the_linked_article():
+    [post] = Reddit.parse_feed(FEED)
+    assert post["id"] == "reddit:t3_x" and post["author"]["handle"] == "u/fan"
+    title, link = post["text"].split("\n\n")
+    assert title == "Arsenal 2-0 Chelsea - post-match thread"
+    assert link == "https://www.bbc.co.uk/sport/football/1"  # the article, not the thread
+    assert post["media"][0]["thumb"] == "https://b.thumbs.redditmedia.com/t.jpg"
+    assert post["ts"] > 0
+
+
+def test_a_hostile_feed_is_refused_not_expanded():
+    import pytest
+    from defusedxml import EntitiesForbidden
+
+    bomb = """<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;&lol;&lol;">]>
+<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>&lol2;</title></entry></feed>"""
+    with pytest.raises(EntitiesForbidden):
+        Reddit.parse_feed(bomb)
+
+
+def test_a_refusal_is_explained_without_the_url():
+    import httpx
+
+    from onside.workers.social import _safe
+
+    req = httpx.Request("GET", "https://www.reddit.com/r/soccer/new/.rss?token=abc")
+    exc = httpx.HTTPStatusError("429 Too Many Requests for url https://...", request=req,
+                                response=httpx.Response(429, request=req))
+    msg = _safe(exc)
+    assert "HTTP 429" in msg and "limiting" in msg and "reddit.com" not in msg
+    boom = httpx.HTTPStatusError("x", request=req, response=httpx.Response(502, request=req))
+    assert "HTTP 502" in _safe(boom)

@@ -200,7 +200,8 @@ backend/onside/
 ├── replay/        open-data fetch, wall-clock schedule, VAR injector, driver
 └── api/           FastAPI: routes, schemas, errors, WebSockets, lite pages
 frontend/src/      React 18 + TypeScript + Vite + Tailwind + TanStack Query
-infra/             AWS CDK: billing alarm, network, data, compute
+infra/             AWS CDK: the free tier (one stack) and the full deployment
+                   (billing alarm, network, data, compute)
 ```
 
 ---
@@ -291,7 +292,7 @@ a zero-heavy grid specifically, because random sampling will never find it.
 ## Tests
 
 ```bash
-make test        # 173 tests
+make test        # 232 backend tests (plus 38 in the web app: npm test)
 make check       # ruff, mypy --strict on the domain, tests, web typecheck
 ```
 
@@ -328,23 +329,65 @@ baked into an image). Each worker receives only its own keys.
 | football-data.org | `FOOTBALL_DATA_API_KEY` | Matches page, home hero, tables, scorers | Free ([register](https://www.football-data.org/client/register)) |
 | Bluesky | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` | Bluesky in the Buzz feed | Free (Settings → App passwords) |
 | Mastodon | none | Mastodon in the Buzz feed | Free |
-| Reddit | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | r/soccer in the Buzz feed | Free, but Reddit approves each app by hand |
+| Reddit | none (the public r/soccer feed); `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` for the API | r/soccer in the Buzz feed | Free (Reddit approves API apps by hand; the feed needs nothing) |
 | X | `X_BEARER_TOKEN`, `X_MAX_READS_PER_DAY` | X in the Buzz feed, with a hard daily cap | Pay-per-use, about $0.005 a post read |
 
 The fixtures worker spends at most four requests a minute against the free
-tier's ten. The social worker runs every two minutes, drops repeats, caps any
+tier's ten. The social worker runs every two minutes (five on the free-tier
+deployment), drops repeats, caps any
 single account at eight posts in six hours, skips sensitive posts and replies,
 and respects authors' opt-outs (Bluesky's `!no-unauthenticated`, Mastodon's
 `noindex`). Without a key, every page says what is off and why instead of
 showing an empty list. `ApiFootballAdapter` (global coverage, native VAR
 events) is implemented and contract-tested but not wired to a service.
 
-### On AWS
+To change a key - after rotating it at the provider - use
+`python infra/onside_secrets.py --set BLUESKY_APP_PASSWORD` (any key name works).
+It asks for the value with typing hidden, so the key never lands in shell
+history, and updates both `.env` and the AWS deployment's copy.
+
+### On AWS, free
+
+```bash
+cd infra && pip install -r requirements.txt
+python onside_secrets.py                    # the keys in ../.env -> SSM Parameter Store
+npm --prefix ../frontend run build
+npx aws-cdk deploy OnsideFree
+cd ../backend && ONSIDE_ENV=aws ONSIDE_TABLE=onside-free python -m onside.ingest.seed
+```
+
+One stack on services that stay inside AWS's always-free allowances:
+CloudFront in front of an S3 bucket holding the web app, a Lambda running the
+unchanged FastAPI app behind the [Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter),
+a second Lambda for the fixtures and social jobs on EventBridge schedules, and
+DynamoDB. Nothing in it is billed by the hour.
+
+The one thing with no free tier is Redis (ElastiCache), so this deployment has
+none. What Redis holds for the fixtures and social workers - strings, hashes,
+sorted sets - lives in a second DynamoDB table instead, behind
+[`DynamoKV`](backend/onside/store/kv.py): the same commands with the same
+answers as redis-py, checked by running the same tests against both. It is
+provisioned at 20 read and 20 write units, inside the always-free 25. The
+Parquet archive ships inside the Lambda image, compacted at build time into
+one file sorted by player ([`compact.py`](backend/onside/archive/compact.py)).
+On Lambda's single vCPU, opening a file per match cost 2.8 seconds for one
+player's career even when warm; the compacted file answers the same query,
+with identical results (a test checks), in about 100 ms warm - 1.4 s on
+the first query after a cold start. Replays and WebSockets need Redis
+Streams and always-on workers, so here they are off: the web app asks
+`/api/features` and says so instead of offering buttons that fail. Everything
+else is the same code.
+
+Secrets are SecureString parameters, read by the worker at start-up and every
+fifteen minutes after, so a rotated key takes effect without a redeploy.
+They never pass through CloudFormation or the image.
+
+### On AWS, the full deployment
 
 ```bash
 cd infra && pip install -r requirements.txt
 npx aws-cdk deploy OnsideBilling --context alarmEmail=you@example.com   # $20 alarm first
-npx aws-cdk deploy --all
+npx aws-cdk deploy OnsideNetwork OnsideData OnsideCompute
 ```
 
 Four stacks, 76 resources (83 with today's fixtures: store the key in Secrets
@@ -355,8 +398,8 @@ behind one ALB. Workers, reclaimer and replay run on **Fargate Spot** — safe
 precisely because of the design: a reclaimed task's messages stay pending, its
 leases expire, and the reclaimer hands the work to someone else.
 
-Target cost is about **$35/month** while running; `npx aws-cdk destroy --all`
-between demos takes it to zero. CI only ever runs `synth`.
+Target cost is about **$35/month** while running; `npx aws-cdk destroy` of
+those stacks between demos takes it to zero. CI only ever runs `synth`.
 
 ---
 

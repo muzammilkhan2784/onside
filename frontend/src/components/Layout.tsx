@@ -5,6 +5,7 @@ import clsx from "clsx";
 import Search from "./Search";
 import { api } from "../lib/api";
 import { useFeedSocket } from "../hooks/useLiveMatch";
+import { useFeatures } from "../hooks/useFeatures";
 import type { MatchCard } from "../lib/types";
 import { Crest } from "./Football";
 
@@ -38,7 +39,8 @@ function Wordmark() {
  *  match as if it were still being played. */
 function Ticker() {
   const qc = useQueryClient();
-  const { data = [] } = useQuery({ queryKey: ["live"], queryFn: api.live, refetchInterval: 30_000 });
+  const realtime = useFeatures()?.realtime === true;
+  const { data = [] } = useQuery({ queryKey: ["live"], queryFn: api.live, refetchInterval: 30_000, enabled: realtime });
   const [flash, setFlash] = useState<string | null>(null);
   const onScore = useCallback((card: unknown) => {
     const c = card as MatchCard;
@@ -55,7 +57,7 @@ function Ticker() {
     setFlash(c.id);
     setTimeout(() => setFlash(null), 1500);
   }, [qc]);
-  useFeedSocket(onScore);
+  useFeedSocket(onScore, realtime);
   if (!data.length) return null;
   return (
     <div className="border-b border-replay/20 bg-replay/[.06]">

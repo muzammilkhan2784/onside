@@ -62,15 +62,15 @@ def leaderboard(
     where, params = _filters(competition_id, season_id)
     sql = f"""
         SELECT player_id AS "playerId",
-               any_value(player) AS player,
-               any_value(team) AS team,
+               arg_max(player, match_date) AS player,
+               arg_max(team, match_date) AS team,  -- the latest, not an arbitrary one
                count(DISTINCT match_id) AS matches,
                {expr} AS value
         FROM events
         WHERE {where}
         GROUP BY player_id
         HAVING value > 0
-        ORDER BY value DESC, matches ASC
+        ORDER BY value DESC, matches ASC, "playerId"
         LIMIT ?
     """
     return query(sql, [*params, limit])
@@ -80,7 +80,7 @@ def player_seasons(player_id: str) -> list[dict[str, Any]]:
     """A player's career, one row per competition-season in the archive."""
     sql = """
         SELECT competition_id AS "competitionId", season_id AS "seasonId",
-               any_value(team) AS team,
+               arg_max(team, match_date) AS team,
                count(DISTINCT match_id) AS matches,
                sum(CASE WHEN type = 'Shot' AND shot_outcome = 'Goal' AND period < 5 THEN 1 ELSE 0 END) AS goals,
                round(sum(CASE WHEN type = 'Shot' AND period < 5 THEN shot_xg ELSE 0 END), 2) AS xg,
@@ -93,7 +93,7 @@ def player_seasons(player_id: str) -> list[dict[str, Any]]:
         FROM events
         WHERE player_id = ?
         GROUP BY competition_id, season_id
-        ORDER BY last DESC
+        ORDER BY last DESC, "competitionId", "seasonId"
     """
     return query(sql, [player_id])
 
@@ -105,7 +105,7 @@ def player_shots(player_id: str, limit: int = 400) -> list[dict[str, Any]]:
                shot_body_part AS "bodyPart"
         FROM events
         WHERE player_id = ? AND type = 'Shot' AND period < 5 AND x IS NOT NULL
-        ORDER BY match_date DESC
+        ORDER BY match_date DESC, match_id DESC, idx DESC
         LIMIT ?
     """
     return query(sql, [player_id, limit])
@@ -143,7 +143,7 @@ def shots(
                minute, x, y, round(shot_xg, 3) AS xg, shot_outcome AS outcome,
                shot_type AS type, shot_body_part AS "bodyPart"
         FROM events WHERE {" AND ".join(where)}
-        ORDER BY shot_xg DESC NULLS LAST
+        ORDER BY shot_xg DESC NULLS LAST, match_id, idx
         LIMIT ?
     """
     return query(sql, [*params, limit])
@@ -153,13 +153,13 @@ def players_catalog() -> list[dict[str, Any]]:
     """Every player in the archive with headline career numbers, for the player
     pages and the search index."""
     sql = """
-        SELECT player_id AS id, any_value(player) AS name,
+        SELECT player_id AS id, arg_max(player, match_date) AS name,
                list(DISTINCT team) AS teams,
                count(DISTINCT match_id) AS matches,
                sum(CASE WHEN type = 'Shot' AND shot_outcome = 'Goal' AND period < 5 THEN 1 ELSE 0 END) AS goals,
                round(sum(CASE WHEN type = 'Shot' AND period < 5 THEN shot_xg ELSE 0 END), 2) AS xg,
                sum(CASE WHEN pass_goal_assist THEN 1 ELSE 0 END) AS assists,
-               any_value(position) AS position,
+               arg_max(position, match_date) AS position,
                min(match_date) AS first, max(match_date) AS last
         FROM events
         WHERE player_id IS NOT NULL

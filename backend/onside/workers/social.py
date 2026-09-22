@@ -1,4 +1,5 @@
-"""Collect public posts about the current football, every two minutes.
+"""Collect public posts about the current football, every two minutes
+(every five on the free-tier AWS deployment, where a schedule runs it).
 
 Reads the fixtures snapshot (from the fixtures worker), works out what to look
 for (social/topics.py), asks every source that is switched on, and stores what
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from typing import Any
 
@@ -23,7 +25,7 @@ from . import fixtures
 
 log = logging.getLogger("onside.social")
 
-POLL_S = 120
+POLL_S = int(os.environ.get("ONSIDE_SOCIAL_EVERY_S", "120"))
 
 
 def sources(r: Any) -> list[Source]:
@@ -33,10 +35,16 @@ def sources(r: Any) -> list[Source]:
 def _safe(exc: Exception) -> str:
     """An error message fit for the dashboard: the type and the gist, never a
     URL (which could carry a query) or a credential."""
-    text = str(exc).split("\n")[0]
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status in (403, 429):
+        return (
+            f"The network is limiting requests from this server (HTTP {status}). "
+            f"Retrying in {POLL_S // 60} minutes."
+        )
+    text = f"HTTP {status}" if status else str(exc).split("\n")[0]
     if "http" in text or "Bearer" in text:
         text = type(exc).__name__
-    return f"Last attempt failed ({text[:140]}). Retrying in two minutes."
+    return f"Last attempt failed ({text[:140]}). Retrying in {POLL_S // 60} minutes."
 
 
 def cycle(r: Any, srcs: list[Source]) -> dict[str, int]:
