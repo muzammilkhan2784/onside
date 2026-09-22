@@ -1,0 +1,1063 @@
+<title>Onside Match Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Manrope:wght@400;500;700;800&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   Onside - floodlit broadcast control room.
+   Single committed visual world (a stadium gantry at night), so the
+   palette is declared once and painted explicitly rather than
+   inheriting anything from the host theme.
+   ------------------------------------------------------------------ */
+:root{
+  --night:#090B1C;        /* deep floodlit sky, blue-violet bias */
+  --deck:#101331;         /* raised surface */
+  --deck-2:#171B44;       /* inset */
+  --rule:#252A5E;         /* borders */
+  --chalk:#EEF1FF;        /* primary text */
+  --mute:#8C93C4;         /* hue-biased neutral, never pure grey */
+  --dim:#5E649A;
+
+  --home:#6FD3FF;         /* Argentina sky */
+  --away:#FF4E6A;         /* France */
+  --draw:#4A5090;         /* the middle band of the river */
+
+  --signal:#FFC53D;       /* VAR / correction language - broadcast amber */
+  --signal-deep:#7A5400;
+  --live:#3DFF9E;
+
+  --shadow:0 18px 50px -20px rgba(0,0,0,.9);
+  --r-lg:20px; --r-md:12px; --r-sm:8px;
+
+  --font-display:'Anton',Impact,'Arial Narrow Bold',sans-serif;
+  --font-body:'Manrope',ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+[hidden]{display:none !important}
+body{
+  background:
+    radial-gradient(1200px 520px at 50% -160px, #1B2050 0%, transparent 70%),
+    radial-gradient(900px 400px at 88% 8%, rgba(255,197,61,.07), transparent 60%),
+    var(--night);
+  color:var(--chalk);
+  font-family:var(--font-body);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:20px 56px}
+
+/* ---------- masthead ---------- */
+.masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.wordmark{display:flex;align-items:baseline;gap:10px}
+.wordmark b{
+  font-family:var(--font-display);font-size:clamp(30px,6vw,44px);letter-spacing:.02em;
+  line-height:.9;text-transform:uppercase;color:var(--chalk);
+}
+.wordmark .dot{width:10px;height:10px;border-radius:50%;background:var(--signal);box-shadow:0 0 18px var(--signal);flex:none;align-self:center}
+.tagline{color:var(--mute);font-size:13px;max-width:52ch}
+.chip{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  padding:5px 9px;border-radius:999px;border:1px solid var(--rule);color:var(--mute);white-space:nowrap;
+}
+
+/* ---------- scoreboard ---------- */
+.board{
+  background:linear-gradient(180deg,var(--deck) 0%, #0D1029 100%);
+  border:1px solid var(--rule);border-radius:var(--r-lg);box-shadow:var(--shadow);
+  overflow:hidden;position:relative;
+}
+.board::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:3px;
+  background:linear-gradient(90deg,var(--home),var(--draw),var(--away));opacity:.8;
+}
+.board-main{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:22px 20px 16px}
+.team{display:flex;flex-direction:column;gap:4px;min-width:0}
+.team.right{align-items:flex-end;text-align:right}
+.team-name{font-family:var(--font-display);font-size:clamp(17px,3.4vw,27px);text-transform:uppercase;letter-spacing:.015em;line-height:1}
+.team-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.swatch{width:26px;height:4px;border-radius:2px}
+.score{display:flex;align-items:center;gap:12px}
+.score b{
+  font-family:var(--font-display);font-size:clamp(44px,11vw,76px);line-height:.82;
+  font-variant-numeric:tabular-nums;transition:transform .28s cubic-bezier(.2,1.6,.4,1),color .28s;
+}
+.score .sep{color:var(--dim);font-family:var(--font-display);font-size:clamp(26px,6vw,42px);line-height:.82}
+.score b.bump{transform:scale(1.28);color:var(--signal)}
+.score b.drop{transform:scale(.72);color:var(--signal)}
+.clockrow{display:flex;align-items:center;justify-content:center;gap:10px;padding:0 20px 16px;flex-wrap:wrap}
+.clock{font-family:var(--font-mono);font-weight:700;font-size:15px;letter-spacing:.05em;color:var(--chalk);font-variant-numeric:tabular-nums}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:999px;
+  border:1px solid var(--rule);color:var(--mute);
+}
+.pill.live{color:var(--live);border-color:rgba(61,255,158,.4)}
+.pill.live i{width:6px;height:6px;border-radius:50%;background:var(--live);animation:blip 1.4s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.25}}
+.pill.pens{color:var(--signal);border-color:rgba(255,197,61,.45)}
+
+/* ---------- transport ---------- */
+.transport{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 20px;border-top:1px solid var(--rule);background:rgba(0,0,0,.18)}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:999px;
+  border:1px solid var(--rule);background:var(--deck-2);color:var(--chalk);
+  font-weight:700;font-size:13px;transition:border-color .15s,background .15s,transform .1s;
+}
+.btn:hover{border-color:var(--mute)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.btn.primary{background:var(--chalk);color:#0A0C1F;border-color:var(--chalk)}
+.btn.var{background:var(--signal);color:#241900;border-color:var(--signal);font-weight:800}
+.btn.var:disabled{opacity:.34;cursor:not-allowed;background:var(--deck-2);color:var(--dim);border-color:var(--rule)}
+.speeds{display:inline-flex;border:1px solid var(--rule);border-radius:999px;overflow:hidden}
+.speeds button{padding:8px 12px;font-family:var(--font-mono);font-size:11.5px;color:var(--mute);letter-spacing:.04em}
+.speeds button[aria-pressed="true"]{background:var(--deck-2);color:var(--chalk)}
+.scrub{flex:1 1 200px;min-width:150px;accent-color:var(--signal)}
+
+/* ---------- correction banner ---------- */
+.banner{
+  display:none;gap:12px;align-items:flex-start;
+  border:1px solid rgba(255,197,61,.5);background:linear-gradient(180deg,rgba(255,197,61,.15),rgba(255,197,61,.05));
+  border-radius:var(--r-md);padding:13px 15px;margin-top:14px;
+}
+.banner.show{display:flex;animation:slam .45s cubic-bezier(.16,1.2,.3,1)}
+@keyframes slam{from{opacity:0;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:none}}
+.banner .icon{
+  flex:none;width:30px;height:22px;border:2.5px solid var(--signal);border-radius:3px;margin-top:2px;
+}
+.banner h3{margin:0 0 3px;font-size:13.5px;font-weight:800;letter-spacing:.01em;color:var(--signal)}
+.banner p{margin:0;font-size:13px;color:#F2E4C0}
+
+/* screen sweep when a correction lands */
+.sweep{position:fixed;inset:0;pointer-events:none;z-index:40;opacity:0}
+.sweep.go{animation:sweep .7s ease-out}
+@keyframes sweep{
+  0%{opacity:0;background:linear-gradient(105deg,transparent 40%,rgba(255,197,61,.30) 50%,transparent 60%);background-size:300% 100%;background-position:120% 0}
+  25%{opacity:1}
+  100%{opacity:0;background-position:-120% 0}
+}
+
+/* ---------- layout ---------- */
+.grid{display:grid;gap:16px;margin-top:16px}
+@media(min-width:900px){.grid.two{grid-template-columns:1.25fr .95fr;align-items:start}}
+.panel{background:var(--deck);border:1px solid var(--rule);border-radius:var(--r-lg);overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 17px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.panel-head h2{margin:0;font-family:var(--font-display);font-size:15px;letter-spacing:.055em;text-transform:uppercase;font-weight:400}
+.panel-head .hint{font-size:11.5px;color:var(--dim)}
+.panel-body{padding:16px 17px}
+
+/* ---------- win probability chart ---------- */
+.chartwrap{position:relative;padding:8px 6px 0}
+svg.chart{display:block;width:100%;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 17px 14px;font-size:12px;color:var(--mute)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;flex:none}
+.readout{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+  border-top:1px solid var(--rule);
+}
+.readout div{background:var(--deck);padding:11px 13px}
+.readout .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.readout .v{font-family:var(--font-display);font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+
+/* ---------- timeline ---------- */
+.feed{max-height:430px;overflow-y:auto;padding:6px 0}
+.feed::-webkit-scrollbar{width:8px}
+.feed::-webkit-scrollbar-thumb{background:var(--rule);border-radius:8px}
+.ev{display:grid;grid-template-columns:44px 1fr;gap:12px;padding:9px 17px;align-items:start;border-left:3px solid transparent}
+.ev .min{font-family:var(--font-mono);font-size:12px;color:var(--dim);padding-top:2px;font-variant-numeric:tabular-nums}
+.ev .body{min-width:0}
+.ev .who{font-weight:700;font-size:13.5px}
+.ev .what{font-size:12.5px;color:var(--mute)}
+.ev.goal{border-left-color:var(--home);background:rgba(111,211,255,.05)}
+.ev.goal.away{border-left-color:var(--away);background:rgba(255,78,106,.05)}
+.ev.card{border-left-color:#C9A227}
+.ev.corr{border-left-color:var(--signal);background:rgba(255,197,61,.08)}
+.ev.struck .who{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--signal);opacity:.62}
+.ev.new{animation:slidein .4s ease-out}
+@keyframes slidein{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+.tag{
+  display:inline-block;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.08em;
+  text-transform:uppercase;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:1px;
+}
+.tag.var{background:var(--signal);color:#241900;font-weight:700}
+.tag.synth{border:1px solid var(--rule);color:var(--dim)}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:2px;padding:4px;background:var(--deck-2);border-radius:999px;border:1px solid var(--rule)}
+.tabs button{
+  padding:7px 13px;border-radius:999px;font-size:12.5px;font-weight:700;color:var(--mute);white-space:nowrap;
+}
+.tabs button[aria-selected="true"]{background:var(--chalk);color:#0A0C1F}
+
+/* ---------- report ---------- */
+.report h3{margin:0 0 4px;font-family:var(--font-display);font-size:19px;text-transform:uppercase;letter-spacing:.02em;font-weight:400;text-wrap:balance}
+.report .lede{color:#CBD1F5;font-size:14.5px;margin:0 0 14px;max-width:62ch}
+.report ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.report li{display:grid;grid-template-columns:42px 1fr;gap:11px;font-size:13.5px;line-height:1.5}
+.report li .m{font-family:var(--font-mono);font-size:12px;color:var(--signal);font-variant-numeric:tabular-nums;padding-top:1px}
+.report .swing{color:var(--mute)}
+.report .closing{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--rule);color:#CBD1F5;font-size:13.5px}
+.note{margin-top:12px;font-size:11.5px;color:var(--dim);border-left:2px solid var(--rule);padding-left:10px}
+
+/* ---------- pitch ---------- */
+.pitchwrap{position:relative}
+svg.pitch{display:block;width:100%;height:auto;background:#0C1030;border-radius:var(--r-md)}
+.shot{cursor:pointer;transition:opacity .15s}
+.shot:hover{opacity:1 !important}
+.ff-info{font-size:12.5px;color:var(--mute);margin-top:10px;min-height:38px}
+.ff-info b{color:var(--chalk)}
+
+/* ---------- history strip ---------- */
+.history{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.hbox{border:1px solid var(--rule);border-radius:var(--r-sm);padding:8px 11px;background:var(--deck-2)}
+.hbox .k{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.hbox .v{font-family:var(--font-mono);font-size:14px;font-weight:700}
+.hbox.ghost .v{color:var(--signal)}
+
+/* ---------- empty state ---------- */
+.empty{color:var(--mute);font-size:13px;padding:18px 0;max-width:56ch}
+.empty b{color:var(--chalk);display:block;margin-bottom:4px;font-size:13.5px}
+
+/* ---------- footer ---------- */
+.foot{margin-top:28px;padding-top:18px;border-top:1px solid var(--rule);color:var(--dim);font-size:12px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+.foot a{color:var(--mute)}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+}
+</style>
+
+<div class="sweep" id="sweep" aria-hidden="true"></div>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <div class="wordmark"><span class="dot"></span><b>Onside</b></div>
+      <p class="tagline">A soccer match that stays correct when the decision changes. Replayed from real event data, with a live win-probability model and a match report that rewrites itself.</p>
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <span class="chip" id="chip-events">— events</span>
+      <span class="chip">StatsBomb open data</span>
+    </div>
+  </header>
+
+  <!-- ------------------ scoreboard ------------------ -->
+  <section class="board" aria-label="Scoreboard">
+    <div class="board-main">
+      <div class="team">
+        <div class="swatch" style="background:var(--home)"></div>
+        <div class="team-name" id="home-name">—</div>
+        <div class="team-meta" id="home-meta">xG —</div>
+      </div>
+      <div class="score">
+        <b id="score-h">0</b><span class="sep">:</span><b id="score-a">0</b>
+      </div>
+      <div class="team right">
+        <div class="swatch" style="background:var(--away)"></div>
+        <div class="team-name" id="away-name">—</div>
+        <div class="team-meta" id="away-meta">xG —</div>
+      </div>
+    </div>
+
+    <div class="clockrow">
+      <span class="clock" id="clock">0'</span>
+      <span class="pill live" id="pill-status"><i></i> <span>Kick-off</span></span>
+      <span class="pill" id="pill-comp">—</span>
+      <span class="pill pens" id="pill-pens" hidden>Pens —</span>
+    </div>
+
+    <div class="transport">
+      <button class="btn primary" id="play">▶ Play</button>
+      <button class="btn" id="reset">Restart</button>
+      <div class="speeds" role="group" aria-label="Replay speed">
+        <button data-speed="1" aria-pressed="true">1 min/s</button>
+        <button data-speed="3" aria-pressed="false">3 min/s</button>
+        <button data-speed="10" aria-pressed="false">10 min/s</button>
+      </div>
+      <input class="scrub" id="scrub" type="range" min="0" max="126" step="1" value="0" aria-label="Scrub to minute">
+      <button class="btn var" id="force-var">⚑ Force the VAR check</button>
+    </div>
+  </section>
+
+  <div class="banner" id="banner" role="status" aria-live="polite">
+    <span class="icon" aria-hidden="true"></span>
+    <div><h3 id="banner-title">Correction applied</h3><p id="banner-text"></p></div>
+  </div>
+
+  <!-- ------------------ win probability ------------------ -->
+  <section class="panel" style="margin-top:16px">
+    <div class="panel-head">
+      <h2>Live win probability</h2>
+      <span class="hint" id="wp-hint">Recomputed from the match state every minute</span>
+    </div>
+    <div class="chartwrap">
+      <svg class="chart" id="chart" viewBox="0 0 900 260" role="img"
+           aria-label="Stacked win probability over the match"></svg>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--home)"></i><span id="lg-home">Home win</span></span>
+      <span><i style="background:var(--draw)"></i>Draw</span>
+      <span><i style="background:var(--away)"></i><span id="lg-away">Away win</span></span>
+      <span id="lg-ghost" hidden><i style="background:transparent;border:1.5px dashed var(--signal)"></i>Before the correction</span>
+    </div>
+    <div class="readout">
+      <div><div class="k" id="ro-home-k">Home</div><div class="v" id="ro-home" style="color:var(--home)">—</div></div>
+      <div><div class="k">Draw</div><div class="v" id="ro-draw" style="color:var(--mute)">—</div></div>
+      <div><div class="k" id="ro-away-k">Away</div><div class="v" id="ro-away" style="color:var(--away)">—</div></div>
+    </div>
+  </section>
+
+  <!-- ------------------ two columns ------------------ -->
+  <div class="grid two">
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Match log</h2>
+        <span class="hint">Append-only. Nothing is ever deleted.</span>
+      </div>
+      <div class="feed" id="feed"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2 id="tab-title">Report</h2>
+        <div class="tabs" role="tablist">
+          <button role="tab" data-tab="report" aria-selected="true">Report</button>
+          <button role="tab" data-tab="shots" aria-selected="false">Shots</button>
+          <button role="tab" data-tab="audit" aria-selected="false">Audit</button>
+        </div>
+      </div>
+
+      <div class="panel-body" id="pane-report"></div>
+
+      <div class="panel-body" id="pane-shots" hidden>
+        <div class="pitchwrap">
+          <svg class="pitch" id="pitch" viewBox="0 0 122 82" role="img" aria-label="Shot map"></svg>
+        </div>
+        <p class="ff-info" id="ff-info">Tap a shot. Circles are sized by expected goals; the ones ringed in amber were scored. Where StatsBomb recorded a freeze-frame, every player on the pitch at that instant appears.</p>
+      </div>
+
+      <div class="panel-body" id="pane-audit" hidden></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <span>Event data: <b>StatsBomb Open Data</b>, used under their free licence. Onside is a portfolio project and is not affiliated with StatsBomb.</span>
+    <span id="foot-model">—</span>
+  </footer>
+</div>
+
+<script id="onside-data" type="application/json">__ONSIDE_DATA__</script>
+<script>
+(function(){
+"use strict";
+
+const DATA = JSON.parse(document.getElementById('onside-data').textContent);
+const M = DATA.match, MIN = DATA.minutes, MODEL = DATA.model;
+const REG = MIN.n - 1;                    // last regulation minute the model covers
+const FULL = 126;                         // end of the scrub range, including pens
+
+/* ------------------------------------------------------------------
+   The model. These are the real LightGBM trees, exported from the
+   trained booster; the browser evaluates them directly, so a
+   correction genuinely recomputes the probability series rather than
+   revealing a second pre-baked curve.
+   ------------------------------------------------------------------ */
+const FIDX = {};
+(DATA.features || []).forEach((n,i)=>FIDX[n]=i);
+
+function evalTree(node, x){
+  while (typeof node === 'object') node = (x[node.f] <= node.t) ? node.l : node.r;
+  return node;
+}
+function winProb(x){
+  if(!MODEL) return [1/3,1/3,1/3];
+  const K = MODEL.n_classes, raw = new Array(K).fill(0);
+  const trees = MODEL.trees;
+  for(let i=0;i<trees.length;i++) raw[i%K] += evalTree(trees[i], x);
+  let mx = Math.max(...raw), s = 0;
+  const out = raw.map(v=>{const e=Math.exp(v-mx); s+=e; return e;});
+  return out.map(v=>v/s);
+}
+
+/* ---------------- state ---------------- */
+const state = {
+  minute: 0,
+  playing: false,
+  speed: 1,   // match-minutes per real second
+  applied: new Set(),      // correction ids already in the log
+  ghost: null,             // the series as it stood before the disallow
+  selectedShot: null,
+  tab: 'report'
+};
+
+const DISALLOW = DATA.corrections.find(c=>c.kind==='disallow') || null;
+const AMEND = DATA.corrections.find(c=>c.kind==='amend') || null;
+
+/* ---------------- derived match facts ---------------- */
+function disallowedIds(){
+  const out = new Set();
+  for(const c of DATA.corrections){
+    if(state.applied.has(c.id) && c.kind==='disallow') out.add(c.supersedes);
+  }
+  return out;
+}
+function amendedXg(){
+  const out = {};
+  for(const c of DATA.corrections){
+    if(state.applied.has(c.id) && c.kind==='amend' && c.payload && c.payload.xg!=null)
+      out[c.supersedes] = c.payload.xg;
+  }
+  return out;
+}
+function scoreAt(minute, dis){
+  let h=0,a=0;
+  for(const g of DATA.goals){
+    if(g.shootout) continue;
+    if(dis.has(g.id)) continue;
+    if(g.minute<=minute) (g.home ? h++ : a++);
+  }
+  return [h,a];
+}
+/* The model's rows describe the state at the *start* of a minute, so the
+   feature builder counts only what happened strictly before it. The display
+   score above uses <=, because a goal in the 35th minute should appear on the
+   scoreboard when the clock reads 35. Keeping the two apart is the difference
+   between serving the model what it was trained on and quietly shifting every
+   input by a minute. */
+function scoreBefore(minute, dis){
+  let h=0,a=0;
+  for(const g of DATA.goals){
+    if(g.shootout || dis.has(g.id)) continue;
+    if(g.minute<minute) (g.home ? h++ : a++);
+  }
+  return [h,a];
+}
+function redsBefore(minute, dis){
+  let h=0,a=0;
+  for(const c of DATA.cards){
+    if(!c.red || dis.has(c.id)) continue;
+    if(c.minute<minute) (c.home?h++:a++);
+  }
+  return [h,a];
+}
+function shootoutAt(minute){
+  let h=0,a=0;
+  for(const g of DATA.goals) if(g.shootout && g.minute<=minute) (g.home?h++:a++);
+  return [h,a];
+}
+
+/* The win-probability series, rebuilt from the current log. This is the
+   function a correction invalidates. */
+function buildSeries(dis){
+  const xgAdj = amendedXg();
+  // xG amendments shift the cumulative xG from the shot's minute onward.
+  const bumps = [];
+  for(const [id,newXg] of Object.entries(xgAdj)){
+    const s = DATA.shots.find(s=>s.id===id);
+    if(s) bumps.push({minute:Math.min(s.minute,REG), home:s.home, delta:newXg-(s.xg||0)});
+  }
+  const series = [];
+  for(let m=0;m<=REG;m++){
+    const [h,a] = scoreBefore(m, dis);
+    const [rh,ra] = redsBefore(m, dis);
+    let xgH = MIN.xgH[m], xgA = MIN.xgA[m];
+    for(const b of bumps) if(b.minute<m) (b.home ? xgH+=b.delta : xgA+=b.delta);
+
+    const x = new Array(DATA.features.length).fill(0);
+    x[FIDX.minute]=m;
+    x[FIDX.minutes_remaining]=Math.max(REG-m,0);
+    x[FIDX.score_diff]=h-a;
+    x[FIDX.red_card_diff]=rh-ra;
+    x[FIDX.xg_diff]=xgH-xgA;
+    x[FIDX.shots_diff]=MIN.shH[m]-MIN.shA[m];
+    x[FIDX.shots_on_target_diff]=MIN.sotH[m]-MIN.sotA[m];
+    x[FIDX.possession_diff]=MIN.possDiff[m];
+    x[FIDX.elo_diff]=M.eloDiff||0;
+    x[FIDX.is_neutral_venue]=M.neutral?1:0;
+
+    const p = winProb(x);
+    series.push({minute:m,p_home:p[0],p_draw:p[1],p_away:p[2]});
+  }
+  return series;
+}
+
+let SERIES = buildSeries(new Set());
+
+/* ---------------- chart ---------------- */
+const CW=900, CH=260, PADL=34, PADR=10, PADT=10, PADB=22;
+function xAt(m){ return PADL + (m/REG)*(CW-PADL-PADR); }
+function yAt(p){ return PADT + (1-p)*(CH-PADT-PADB); }
+
+function drawChart(){
+  const svg = document.getElementById('chart');
+  const upto = Math.min(Math.floor(state.minute), REG);
+  const pts = SERIES.slice(0, upto+1);
+  let out = '';
+
+  // grid
+  for(const p of [0.25,0.5,0.75]){
+    out += `<line x1="${PADL}" y1="${yAt(p)}" x2="${CW-PADR}" y2="${yAt(p)}" stroke="#252A5E" stroke-width="1"/>`;
+    out += `<text x="${PADL-6}" y="${yAt(p)+3.5}" fill="#5E649A" font-size="9" font-family="'JetBrains Mono',monospace" text-anchor="end">${p*100|0}</text>`;
+  }
+  // half-time + full-time markers
+  for(const [m,label] of [[45,'HT'],[REG,'90']]){
+    out += `<line x1="${xAt(m)}" y1="${PADT}" x2="${xAt(m)}" y2="${CH-PADB}" stroke="#252A5E" stroke-dasharray="3 4" stroke-width="1"/>`;
+    out += `<text x="${xAt(m)}" y="${CH-PADB+13}" fill="#5E649A" font-size="9" font-family="'JetBrains Mono',monospace" text-anchor="middle">${label}</text>`;
+  }
+  out += `<text x="${PADL}" y="${CH-PADB+13}" fill="#5E649A" font-size="9" font-family="'JetBrains Mono',monospace" text-anchor="start">0'</text>`;
+
+  if(pts.length>1){
+    // stacked river: home at the bottom, draw in the middle, away on top
+    const fmt = a => a.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const homePts = pts.map(d=>[xAt(d.minute), yAt(d.p_home)]);
+    const drawPts = pts.map(d=>[xAt(d.minute), yAt(d.p_home + d.p_draw)]);
+    const x0=xAt(0), x1=xAt(pts[pts.length-1].minute), yB=yAt(0), yT=yAt(1);
+    // home band sits on the baseline, draw band between the two lines,
+    // away band hangs from the top - together they always fill 100%.
+    out += `<polygon points="${x0},${yB} ${fmt(homePts)} ${x1},${yB}" fill="#6FD3FF" fill-opacity=".9"/>`;
+    out += `<polygon points="${fmt(homePts)} ${fmt(drawPts.slice().reverse())}" fill="#4A5090" fill-opacity=".92"/>`;
+    out += `<polygon points="${x0},${yT} ${fmt(drawPts)} ${x1},${yT}" fill="#FF4E6A" fill-opacity=".9"/>`;
+  }
+
+  // the band where a goal stood before being taken away
+  if(state.ghost && DISALLOW){
+    const g = DATA.goals.find(x=>x.id===DISALLOW.supersedes);
+    if(g){
+      const a=xAt(Math.min(g.minute,REG)), b=xAt(Math.min(DISALLOW.decidedAt,REG));
+      out += `<rect x="${a}" y="${PADT}" width="${Math.max(b-a,2)}" height="${CH-PADT-PADB}"
+               fill="url(#hatch)" stroke="#FFC53D" stroke-width="1" stroke-dasharray="3 3"/>`;
+      out += `<text x="${(a+b)/2}" y="${PADT+12}" fill="#FFC53D" font-size="9.5"
+               font-family="'JetBrains Mono',monospace" text-anchor="middle">STOOD ${g.minute}'–${DISALLOW.decidedAt}'</text>`;
+    }
+    // the curve as it was before the correction
+    const gpts = state.ghost.slice(0, upto+1);
+    if(gpts.length>1){
+      out += `<polyline points="${gpts.map(d=>`${xAt(d.minute)},${yAt(d.p_home)}`).join(' ')}"
+               fill="none" stroke="#FFC53D" stroke-width="1.6" stroke-dasharray="5 4" opacity=".95"/>`;
+    }
+  }
+
+  // goal markers
+  for(const g of DATA.goals){
+    if(g.shootout || g.minute>upto) continue;
+    const dis = disallowedIds().has(g.id);
+    const x = xAt(Math.min(g.minute,REG));
+    out += `<line x1="${x}" y1="${PADT}" x2="${x}" y2="${CH-PADB}" stroke="${dis?'#FFC53D':'#EEF1FF'}"
+             stroke-width="1" opacity="${dis?.75:.5}" ${dis?'stroke-dasharray="2 3"':''}/>`;
+    out += `<circle cx="${x}" cy="${PADT+4}" r="3.4" fill="${dis?'#0A0C1F':(g.home?'#6FD3FF':'#FF4E6A')}"
+             stroke="${dis?'#FFC53D':'none'}" stroke-width="1.6"/>`;
+  }
+
+  // playhead
+  const px = xAt(Math.min(state.minute,REG));
+  out += `<line x1="${px}" y1="${PADT}" x2="${px}" y2="${CH-PADB}" stroke="#EEF1FF" stroke-width="1.5" opacity=".9"/>`;
+
+  svg.innerHTML = `<defs><pattern id="hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="rgba(255,197,61,.10)"/>
+      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,197,61,.45)" stroke-width="1.6"/>
+    </pattern></defs>` + out;
+}
+
+/* ---------------- pitch + shot map ---------------- */
+function drawPitch(){
+  const svg = document.getElementById('pitch');
+  const upto = state.minute;
+  const dis = disallowedIds();
+  const L=(v)=>v+1;                                   // 1-unit margin inside the viewBox
+  let g = `<rect x="1" y="1" width="120" height="80" fill="#0E1234" stroke="#2A3070" stroke-width=".5"/>`;
+  g += `<line x1="61" y1="1" x2="61" y2="81" stroke="#2A3070" stroke-width=".5"/>`;
+  g += `<circle cx="61" cy="41" r="10" fill="none" stroke="#2A3070" stroke-width=".5"/>`;
+  g += `<circle cx="61" cy="41" r="0.7" fill="#2A3070"/>`;
+  // 18-yard boxes (44 wide x 18 deep) and 6-yard boxes (20 x 6)
+  g += `<rect x="1" y="19" width="18" height="44" fill="none" stroke="#2A3070" stroke-width=".5"/>`;
+  g += `<rect x="103" y="19" width="18" height="44" fill="none" stroke="#2A3070" stroke-width=".5"/>`;
+  g += `<rect x="1" y="31" width="6" height="20" fill="none" stroke="#2A3070" stroke-width=".5"/>`;
+  g += `<rect x="115" y="31" width="6" height="20" fill="none" stroke="#2A3070" stroke-width=".5"/>`;
+  g += `<circle cx="13" cy="41" r="0.7" fill="#2A3070"/><circle cx="109" cy="41" r="0.7" fill="#2A3070"/>`;
+
+  const sel = state.selectedShot ? DATA.shots.find(s=>s.id===state.selectedShot) : null;
+
+  if(sel && sel.freeze && sel.freeze.length){
+    for(const a of sel.freeze){
+      const cx = sel.home ? L(a.x) : L(120-a.x), cy = sel.home ? L(a.y) : L(80-a.y);
+      const fill = a.k ? '#FFC53D' : (a.t ? (sel.home?'#6FD3FF':'#FF4E6A') : '#5E649A');
+      g += `<circle cx="${cx}" cy="${cy}" r="1.5" fill="${fill}" opacity=".9"/>`;
+    }
+  }
+
+  for(const s of DATA.shots){
+    if(s.minute>upto) continue;
+    const cx = s.home ? L(s.x) : L(120-s.x), cy = s.home ? L(s.y) : L(80-s.y);
+    const r = 1 + Math.sqrt(Math.max(s.xg||0.01,0.01))*4.2;
+    const struck = dis.has(s.id);
+    const col = s.home ? '#6FD3FF' : '#FF4E6A';
+    const isSel = state.selectedShot===s.id;
+    g += `<circle class="shot" data-id="${s.id}" cx="${cx}" cy="${cy}" r="${r.toFixed(2)}"
+           fill="${s.goal && !struck ? col : 'none'}" fill-opacity=".55"
+           stroke="${struck?'#FFC53D':col}" stroke-width="${isSel?1.1:(s.goal?.9:.5)}"
+           stroke-dasharray="${struck?'1.4 1.4':''}"
+           opacity="${isSel?1:(s.goal?.95:.6)}"><title>${s.player} ${s.minute}' — xG ${(s.xg||0).toFixed(2)} — ${s.outcome}</title></circle>`;
+  }
+  svg.innerHTML = g;
+  svg.querySelectorAll('.shot').forEach(el=>{
+    el.addEventListener('click',()=>{
+      state.selectedShot = (state.selectedShot===el.dataset.id) ? null : el.dataset.id;
+      drawPitch(); renderShotInfo();
+    });
+  });
+}
+
+function renderShotInfo(){
+  const el = document.getElementById('ff-info');
+  const s = state.selectedShot ? DATA.shots.find(x=>x.id===state.selectedShot) : null;
+  if(!s){
+    el.innerHTML = 'Tap a shot. Circles are sized by expected goals; filled ones were scored. Where StatsBomb recorded a freeze-frame, every player on the pitch at that instant appears.';
+    return;
+  }
+  const ff = s.freeze && s.freeze.length
+    ? `Freeze-frame: <b>${s.freeze.length}</b> players visible at the moment of the shot.`
+    : 'No freeze-frame recorded for this shot — penalties have no defensive shape to capture.';
+  el.innerHTML = `<b>${s.player}</b>, ${s.minute}' — ${s.type.toLowerCase()}, ${s.bodyPart.toLowerCase()}. `
+    + `Worth <b>${(s.xg||0).toFixed(2)}</b> expected goals; outcome <b>${s.outcome}</b>. ${ff}`;
+}
+
+/* ---------------- match log ---------------- */
+function logEntries(){
+  const dis = disallowedIds();
+  const out = [];
+  for(const g of DATA.goals){
+    out.push({minute:g.minute, period:g.period, sort:g.minute*10,
+      kind:'goal', home:g.home, struck:dis.has(g.id), id:g.id,
+      who:`${g.player}`,
+      what: g.shootout ? `Shootout penalty scored for ${g.team}`
+        : `${g.type==='Penalty'?'Penalty':'Goal'} for ${g.team}${g.xg!=null?` · xG ${g.xg.toFixed(2)}`:''}`});
+  }
+  for(const c of DATA.cards){
+    out.push({minute:c.minute, period:c.period, sort:c.minute*10+1, kind:'card',
+      home:c.home, who:c.player, what:`${c.card} — ${c.team}`});
+  }
+  for(const c of DATA.corrections){
+    if(!state.applied.has(c.id)) continue;
+    out.push({minute:c.decidedAt, period:c.period, sort:c.decidedAt*10+5, kind:'corr',
+      authority:AUTHORITY_LABEL[c.authority] || c.authority,
+      who:correctionTitle(c),
+      what:`${c.reason} · decided by ${AUTHORITY_LABEL[c.authority] || c.authority}`,
+      synth:c.synthesised});
+  }
+  return out.filter(e=>e.minute<=state.minute).sort((a,b)=>a.sort-b.sort);
+}
+/* The badge named VAR for every correction, including a data revision no
+   referee was ever involved in. Say which authority actually decided. */
+const AUTHORITY_LABEL = {
+  VAR:'VAR', referee:'Referee', official_review:'Official review',
+  feed_correction:'Data correction',
+};
+function correctionTitle(c){
+  return {disallow:'Goal disallowed', reassign:'Goal reassigned',
+          amend:'Detail corrected', reinstate:'Goal reinstated'}[c.kind] || 'Correction';
+}
+
+let lastLogCount = 0;
+function drawFeed(){
+  const feed = document.getElementById('feed');
+  const rows = logEntries();
+  if(!rows.length){
+    feed.innerHTML = `<div class="panel-body"><div class="empty"><b>Nothing has happened yet.</b>
+      Press play and the log fills in as the match runs. Every event is appended — when a decision is
+      overturned later, the original stays here with a line through it.</div></div>`;
+    lastLogCount = 0; return;
+  }
+  feed.innerHTML = rows.map((e,i)=>{
+    const cls = ['ev', e.kind==='goal'?'goal':(e.kind==='card'?'card':'corr'),
+                 e.home===false?'away':'', e.struck?'struck':'',
+                 i>=lastLogCount?'new':''].filter(Boolean).join(' ');
+    const tag = e.kind==='corr'
+      ? `<span class="tag var">${e.authority}</span>${e.synth?'<span class="tag synth">synthesised</span>':''}` : '';
+    return `<div class="${cls}"><div class="min">${e.minute}'</div>
+      <div class="body"><div class="who">${e.who}${tag}</div><div class="what">${e.what}</div></div></div>`;
+  }).join('');
+  lastLogCount = rows.length;
+  const last = feed.querySelector('.ev.new');
+  if(last && state.playing) last.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+
+/* ---------------- the generated report ----------------
+   A direct port of backend/onside/domain/narrative — the moments are
+   ranked by how far they moved the win probability, then templated.
+   No language model: every sentence comes from a rule, which is why it
+   regenerates correctly the instant a correction lands. */
+function probsAt(series,m){
+  if(!series.length) return [1/3,1/3,1/3];
+  const i = Math.max(0, Math.min(series.length-1, Math.floor(m)));
+  const d = series[i];
+  return [d.p_home,d.p_draw,d.p_away];
+}
+/* Who is ahead *now*. A report written at 37' must not know how the match
+   ends: naming the eventual winner while quoting the current score produced
+   "France lead 1-0" when Argentina were the side 1-0 up. */
+function winnerIdx(){
+  const dis = disallowedIds();
+  const [h,a] = scoreAt(state.minute, dis);
+  const [sh,sa] = shootoutAt(state.minute);
+  if((sh||sa) && sh!==sa) return sh>sa?0:2;
+  return h>a?0:(h===a?1:2);
+}
+function ordinal(n){
+  const r = n % 100;
+  if(r>=11 && r<=13) return n+'th';
+  return n + ({1:'st',2:'nd',3:'rd'}[n%10] || 'th');
+}
+function distanceFromGoal(s){
+  if(!s) return null;
+  const dx = 120-s.x, dy = s.y-40;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+function verbPhrase(g, dist){
+  if(g.type==='Penalty') return 'converted the penalty';
+  if(dist!=null && dist>=25) return 'struck one from distance';
+  if(g.xg!=null && g.xg>=0.4) return 'finished from close range';
+  if(g.xg!=null && g.xg<=0.06) return 'scored from almost nothing';
+  if(g.type==='Free Kick') return 'curled in the free kick';
+  return 'found the net';
+}
+function buildReport(){
+  const dis = disallowedIds();
+  const wi = winnerIdx();
+  const names = [M.home, 'a draw', M.away];
+  const winnerName = wi===1 ? 'Neither side' : names[wi];
+  const moments = [];
+  let h=0,a=0;
+
+  const visible = DATA.goals.filter(g=>!g.shootout && g.minute<=state.minute)
+                            .sort((x,y)=>x.minute-y.minute);
+  for(const g of visible){
+    const struck = dis.has(g.id);
+    if(!struck) (g.home?h++:a++);
+    const before = probsAt(SERIES, g.minute);
+    const after = probsAt(SERIES, g.minute+1);
+    const shot = DATA.shots.find(s=>s.id===g.id);
+    moments.push({minute:g.minute, struck, player:g.player, team:g.team,
+      score:[h,a], before, after, swing:Math.abs(after[wi]-before[wi]),
+      verb:verbPhrase(g, distanceFromGoal(shot)), reason:g.reason||''});
+  }
+  for(const c of DATA.cards){
+    if(!c.red || c.minute>state.minute) continue;
+    const before = probsAt(SERIES, c.minute), after = probsAt(SERIES, c.minute+1);
+    moments.push({minute:c.minute, red:true, player:c.player, team:c.team,
+      score:[h,a], before, after, swing:Math.abs(after[wi]-before[wi])});
+  }
+  for(const c of DATA.corrections){
+    if(!state.applied.has(c.id) || c.kind!=='disallow') continue;
+    const g = DATA.goals.find(x=>x.id===c.supersedes);
+    if(!g) continue;
+    moments.push({minute:c.decidedAt, correction:true, player:g.player, team:g.team,
+      score:[h,a], before:[0,0,0], after:[0,0,0], swing:0, reason:c.reason});
+  }
+  moments.sort((x,y)=>x.minute-y.minute);
+
+  const lines = moments.map(m=>{
+    const swing = (!m.struck && !m.correction && Math.abs(m.after[wi]-m.before[wi])*100>=3)
+      ? `<span class="swing">That moved ${winnerName} from ${Math.round(m.before[wi]*100)}% to ${Math.round(m.after[wi]*100)}% to win.</span>`
+      : '';
+    let text;
+    if(m.correction){
+      text = `<b>${m.player}</b>'s goal was taken off the board — ${m.reason.toLowerCase()}. The score went back to ${m.score[0]}–${m.score[1]}.`;
+    } else if(m.red){
+      text = `<b>${m.player}</b> was sent off for ${m.team}.`;
+    } else if(m.struck){
+      text = `<b>${m.player}</b> put the ball in the net for ${m.team}, but it would not stand.`;
+    } else {
+      text = `<b>${m.player}</b> ${m.verb} to make it ${m.score[0]}–${m.score[1]}. ${swing}`;
+    }
+    return `<li><span class="m">${m.minute}'</span><span>${text}</span></li>`;
+  });
+
+  // lede, chosen from the shape of the state
+  const [fh,fa] = scoreAt(state.minute, dis);
+  const [sh,sa] = shootoutAt(state.minute);
+  let lede;
+  if(state.minute<5) lede = `Kick-off at the ${M.venue}. Nothing has happened yet, so there is nothing to report — the report writes itself as the match runs.`;
+  else if(sh||sa) lede = `${winnerName} won it on penalties after ${fh}–${fa}, a final that swung further than the score alone shows.`;
+  else if(fh===fa && fh===0) lede = `${M.home} and ${M.away} are goalless so far, a match being decided by the chances neither side is taking.`;
+  else if(fh===fa) lede = `${M.home} and ${M.away} are level at ${fh}–${fa}, and neither looks certain of it.`;
+  else if(Math.abs(fh-fa)>=2) lede = `${winnerName} are ${fh}–${fa} up and largely untroubled.`;
+  else lede = `${winnerName} lead ${fh}–${fa}, and it is as tight as that scoreline suggests.`;
+
+  const biggest = moments.filter(m=>!m.correction && !m.struck)
+    .sort((x,y)=>y.swing-x.swing)[0];
+  const closing = (biggest && biggest.swing*100>=3)
+    ? `<p class="closing">The single biggest swing so far came in the ${ordinal(biggest.minute)} minute, worth ${Math.round(biggest.swing*100)} percentage points.</p>` : '';
+
+  const notes = [];
+  if(state.applied.size) notes.push('This report was regenerated after a correction was applied to the match log.');
+  if([...state.applied].some(id=>(DATA.corrections.find(c=>c.id===id)||{}).synthesised))
+    notes.push(DATA.disclaimer);
+
+  const title = `${M.home} ${fh}–${fa} ${M.away}${(sh||sa)?` (${sh}–${sa} on penalties)`:''} · ${M.competition}, ${M.stage}`;
+
+  document.getElementById('pane-report').innerHTML = `
+    <div class="report">
+      <h3>${title}</h3>
+      <p class="lede">${lede}</p>
+      ${lines.length?`<ol>${lines.join('')}</ol>`:`<div class="empty"><b>No moments yet.</b>
+        Moments are chosen by how far they move the win probability, so the report stays empty until something actually changes the game.</div>`}
+      ${closing}
+      ${notes.map(n=>`<p class="note">${n}</p>`).join('')}
+    </div>`;
+}
+
+/* ---------------- audit pane ---------------- */
+function buildAudit(){
+  const dis = disallowedIds();
+  const rows = [];
+  const checkpoints = [];
+  if(DISALLOW){
+    const g = DATA.goals.find(x=>x.id===DISALLOW.supersedes);
+    if(g){
+      checkpoints.push([g.minute+1, 'just after the goal']);
+      checkpoints.push([DISALLOW.decidedAt+1, 'once VAR had ruled']);
+    }
+  }
+  checkpoints.push([Math.floor(state.minute), 'now']);
+
+  for(const [m,label] of checkpoints){
+    const applied = new Set([...state.applied].filter(id=>{
+      const c = DATA.corrections.find(x=>x.id===id);
+      return c && c.decidedAt<=m;
+    }));
+    const d = new Set();
+    for(const c of DATA.corrections) if(applied.has(c.id)&&c.kind==='disallow') d.add(c.supersedes);
+    const [h,a] = scoreAt(m, d);
+    rows.push(`<div class="hbox${label==='once VAR had ruled'?' ghost':''}">
+      <div class="k">${m}' — ${label}</div><div class="v">${h}–${a}</div></div>`);
+  }
+
+  const corrList = DATA.corrections.map(c=>{
+    const on = state.applied.has(c.id);
+    return `<div class="ev ${on?'corr':''}" style="padding-left:0;padding-right:0">
+      <div class="min">${c.decidedAt}'</div>
+      <div class="body">
+        <div class="who">${correctionTitle(c)} ${on?'<span class="tag var">applied</span>':'<span class="tag synth">pending</span>'}</div>
+        <div class="what">${c.reason} · ${c.authority} · supersedes <span style="font-family:var(--font-mono);font-size:11px">${c.supersedes.slice(0,8)}</span></div>
+      </div></div>`;
+  }).join('');
+
+  document.getElementById('pane-audit').innerHTML = `
+    <p style="margin:0 0 10px;font-size:13.5px;color:#CBD1F5">
+      Because the log is append-only, the score at any earlier minute is still answerable.
+      That is the question a scores site that overwrites a row cannot answer at all.</p>
+    <div class="history">${rows.join('')}</div>
+    <h3 style="font-family:var(--font-display);font-weight:400;letter-spacing:.055em;text-transform:uppercase;font-size:13px;margin:20px 0 6px;color:var(--mute)">Corrections in this match</h3>
+    ${corrList || '<div class="empty">No corrections have arrived yet.</div>'}
+    <p class="note">${DATA.disclaimer}</p>`;
+}
+
+/* ---------------- render ---------------- */
+function fmtClock(){
+  const m = Math.floor(state.minute);
+  if(m>=121) return 'PENS';
+  if(m>REG) return `${m}' ET`;
+  return `${m}'`;
+}
+function render(){
+  const dis = disallowedIds();
+  const [h,a] = scoreAt(state.minute, dis);
+  const [sh,sa] = shootoutAt(state.minute);
+
+  setScore('score-h', h); setScore('score-a', a);
+  document.getElementById('clock').textContent = fmtClock();
+
+  const pens = document.getElementById('pill-pens');
+  pens.hidden = !(sh||sa);
+  pens.textContent = `Pens ${sh}–${sa}`;
+
+  const status = document.getElementById('pill-status');
+  const m = Math.floor(state.minute);
+  let label = 'Kick-off';
+  if(m>=126) label = 'Full time';
+  else if(m>=121) label = 'Shootout';
+  else if(m>REG) label = 'Extra time';
+  else if(m>=45 && m<47) label = 'Half time';
+  else if(m>0) label = 'Live';
+  status.querySelector('span').textContent = label;
+  status.classList.toggle('live', label==='Live'||label==='Extra time'||label==='Shootout');
+
+  const cur = SERIES[Math.min(Math.floor(state.minute), REG)] || SERIES[0];
+  const beyond = state.minute>REG;
+  document.getElementById('ro-home').textContent = beyond?'—':Math.round(cur.p_home*100)+'%';
+  document.getElementById('ro-draw').textContent = beyond?'—':Math.round(cur.p_draw*100)+'%';
+  document.getElementById('ro-away').textContent = beyond?'—':Math.round(cur.p_away*100)+'%';
+  document.getElementById('wp-hint').textContent = beyond
+    ? 'Extra time is outside the model — it is trained on regulation, where a draw still means something.'
+    : 'Recomputed from the match state every minute';
+
+  const xgH = MIN.xgH[Math.min(m,REG)], xgA = MIN.xgA[Math.min(m,REG)];
+  document.getElementById('home-meta').textContent = shotsLabel(xgH, MIN.shH[Math.min(m,REG)]);
+  document.getElementById('away-meta').textContent = shotsLabel(xgA, MIN.shA[Math.min(m,REG)]);
+
+  document.getElementById('scrub').value = Math.floor(state.minute);
+  drawChart(); drawFeed();
+  if(state.tab==='report') buildReport();
+  if(state.tab==='shots') drawPitch();
+  if(state.tab==='audit') buildAudit();
+}
+
+/* "0 shots" looks like a bug and is not: France did not have a single
+   attempt in the first half of this final. Say it in words. */
+function shotsLabel(xg, shots){
+  if(shots===0) return 'No shots yet';
+  return `xG ${xg.toFixed(2)} · ${shots} shot${shots===1?'':'s'}`;
+}
+
+let prev = {};
+function setScore(id, v){
+  const el = document.getElementById(id);
+  const was = prev[id];
+  if(was!==undefined && was!==v){
+    el.classList.remove('bump','drop');
+    void el.offsetWidth;
+    el.classList.add(v>was?'bump':'drop');
+    setTimeout(()=>el.classList.remove('bump','drop'), 320);
+  }
+  prev[id]=v; el.textContent=v;
+}
+
+/* ---------------- the correction event ---------------- */
+function applyCorrection(c, {announce=true}={}){
+  if(state.applied.has(c.id)) return;
+  if(c.kind==='disallow') state.ghost = SERIES.map(d=>({...d}));
+  state.applied.add(c.id);
+  SERIES = buildSeries(disallowedIds());
+
+  if(c.kind==='disallow'){
+    document.getElementById('lg-ghost').hidden = false;
+    document.getElementById('force-var').disabled = true;
+    const sweep = document.getElementById('sweep');
+    sweep.classList.remove('go'); void sweep.offsetWidth; sweep.classList.add('go');
+  }
+  if(announce){
+    const g = DATA.goals.find(x=>x.id===c.supersedes);
+    const dis = disallowedIds();
+    const [h,a] = scoreAt(state.minute, dis);
+    document.getElementById('banner-title').textContent =
+      `${correctionTitle(c)} — ${AUTHORITY_LABEL[c.authority] || c.authority}`;
+    document.getElementById('banner-text').innerHTML = c.kind==='disallow'
+      ? `${g?g.player+'’s goal at '+g.minute+"'":'A goal'} has been ruled out: ${c.reason.toLowerCase()}. `
+        + `The score is now <b>${h}–${a}</b>. The goal stays in the log, struck through, and the win-probability series, `
+        + `the report and the audit trail have all been rebuilt from the corrected log.`
+      : `${c.reason}. The score is unchanged; the underlying numbers were rebuilt.`;
+    document.getElementById('banner').classList.add('show');
+  }
+  render();
+}
+
+/* ---------------- replay loop ---------------- */
+let raf = null, lastT = 0;
+function tick(t){
+  if(!state.playing) return;
+  if(!lastT) lastT = t;
+  const dt = (t-lastT)/1000; lastT = t;
+  state.minute = Math.min(state.minute + dt * state.speed, FULL);
+
+  // corrections fire when the replay passes the minute the decision was made
+  for(const c of DATA.corrections){
+    if(!state.applied.has(c.id) && state.minute>=c.decidedAt) applyCorrection(c);
+  }
+  render();
+  if(state.minute>=FULL){ setPlaying(false); }
+  else raf = requestAnimationFrame(tick);
+}
+function setPlaying(on){
+  state.playing = on; lastT = 0;
+  document.getElementById('play').textContent = on ? '❚❚ Pause' : '▶ Play';
+  if(on) raf = requestAnimationFrame(tick);
+  else if(raf) cancelAnimationFrame(raf);
+}
+
+/* ---------------- wiring ---------------- */
+document.getElementById('play').addEventListener('click',()=>setPlaying(!state.playing));
+document.getElementById('reset').addEventListener('click',()=>{
+  setPlaying(false);
+  state.minute=0; state.applied.clear(); state.ghost=null; state.selectedShot=null;
+  SERIES = buildSeries(new Set()); lastLogCount=0; prev={};
+  document.getElementById('banner').classList.remove('show');
+  document.getElementById('lg-ghost').hidden = true;
+  document.getElementById('force-var').disabled = false;
+  render();
+});
+document.querySelectorAll('.speeds button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    state.speed = +b.dataset.speed;
+    document.querySelectorAll('.speeds button').forEach(x=>x.setAttribute('aria-pressed', x===b));
+  });
+});
+document.getElementById('scrub').addEventListener('input',e=>{
+  setPlaying(false);
+  state.minute = +e.target.value;
+  // keep the log honest: a correction is in the log only once its decision minute has passed
+  for(const c of DATA.corrections){
+    if(state.minute>=c.decidedAt) { if(!state.applied.has(c.id)) applyCorrection(c,{announce:false}); }
+    else state.applied.delete(c.id);
+  }
+  if(DISALLOW && !state.applied.has(DISALLOW.id)){
+    state.ghost=null;
+    document.getElementById('lg-ghost').hidden=true;
+    document.getElementById('force-var').disabled=false;
+    document.getElementById('banner').classList.remove('show');
+  }
+  SERIES = buildSeries(disallowedIds());
+  render();
+});
+document.getElementById('force-var').addEventListener('click',()=>{
+  if(!DISALLOW) return;
+  const g = DATA.goals.find(x=>x.id===DISALLOW.supersedes);
+  if(g && state.minute < DISALLOW.decidedAt){
+    state.minute = DISALLOW.decidedAt;
+    for(const c of DATA.corrections){
+      if(c!==DISALLOW && state.minute>=c.decidedAt && !state.applied.has(c.id)) applyCorrection(c,{announce:false});
+    }
+  }
+  applyCorrection(DISALLOW);
+});
+document.querySelectorAll('[role="tab"]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    state.tab = b.dataset.tab;
+    document.querySelectorAll('[role="tab"]').forEach(x=>x.setAttribute('aria-selected', x===b));
+    for(const id of ['report','shots','audit'])
+      document.getElementById('pane-'+id).hidden = (id!==state.tab);
+    document.getElementById('tab-title').textContent =
+      {report:'Report', shots:'Shots', audit:'Audit trail'}[state.tab];
+    render();
+  });
+});
+
+/* ---------------- boot ---------------- */
+document.getElementById('home-name').textContent = M.home;
+document.getElementById('away-name').textContent = M.away;
+document.getElementById('lg-home').textContent = M.home + ' win';
+document.getElementById('lg-away').textContent = M.away + ' win';
+document.getElementById('ro-home-k').textContent = M.home;
+document.getElementById('ro-away-k').textContent = M.away;
+document.getElementById('pill-comp').textContent = `${M.competition} · ${M.stage}`;
+document.getElementById('chip-events').textContent = `${DATA.shots.length} shots · ${DATA.goals.length} goals`;
+document.getElementById('foot-model').textContent = MODEL
+  ? `Win probability: LightGBM, ${MODEL.n_trees} trees, evaluated in your browser.`
+  : 'Win-probability model not bundled.';
+
+// Open at 36' - the match is 2-0, both goals are in the log, and the VAR
+// check that takes one of them away is one click away. A first-time visitor
+// sees the whole idea without waiting for a replay to catch up.
+state.minute = 36;
+for(const c of DATA.corrections){
+  if(c.decidedAt <= state.minute && c.kind !== 'disallow') applyCorrection(c, {announce:false});
+}
+render();
+})();
+</script>

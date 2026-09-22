@@ -1,0 +1,15 @@
+{
+  "_provenance": "Shaped from the published API-Football v3 /fixtures/events response schema, including its documented 'Var' event type. NOT a recording: the endpoint needs a paid key. Ids are illustrative.",
+  "get": "fixtures/events",
+  "parameters": {"fixture": "1035037"},
+  "errors": [],
+  "results": 6,
+  "response": [
+    {"time": {"elapsed": 12, "extra": null}, "team": {"id": 50, "name": "Manchester City"}, "player": {"id": 1100, "name": "E. Haaland"}, "assist": {"id": 629, "name": "K. De Bruyne"}, "type": "Goal", "detail": "Normal Goal", "comments": null},
+    {"time": {"elapsed": 31, "extra": null}, "team": {"id": 42, "name": "Arsenal"}, "player": {"id": 1460, "name": "B. Saka"}, "assist": {"id": null, "name": null}, "type": "Goal", "detail": "Normal Goal", "comments": null},
+    {"time": {"elapsed": 33, "extra": null}, "team": {"id": 42, "name": "Arsenal"}, "player": {"id": 1460, "name": "B. Saka"}, "assist": {"id": null, "name": null}, "type": "Var", "detail": "Goal cancelled", "comments": "Offside"},
+    {"time": {"elapsed": 58, "extra": null}, "team": {"id": 42, "name": "Arsenal"}, "player": {"id": 2937, "name": "D. Rice"}, "assist": {"id": null, "name": null}, "type": "Card", "detail": "Yellow Card", "comments": "Foul"},
+    {"time": {"elapsed": 64, "extra": null}, "team": {"id": 50, "name": "Manchester City"}, "player": {"id": 629, "name": "K. De Bruyne"}, "assist": {"id": 631, "name": "P. Foden"}, "type": "subst", "detail": "Substitution 1", "comments": null},
+    {"time": {"elapsed": 90, "extra": 3}, "team": {"id": 50, "name": "Manchester City"}, "player": {"id": 1100, "name": "E. Haaland"}, "assist": {"id": null, "name": null}, "type": "Goal", "detail": "Penalty", "comments": null}
+  ]
+}

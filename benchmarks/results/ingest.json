@@ -1,0 +1,46 @@
+{
+  "match": "Argentina v France",
+  "events": 4407,
+  "batch_size": 200,
+  "batches": 23,
+  "wall_seconds": 81.44,
+  "events_per_second_end_to_end": 54,
+  "events_per_second_projection_only": 463,
+  "per_batch_ms": {
+    "produce_to_stream": {
+      "p50": 210.4,
+      "p95": 418.1,
+      "p99": 470.3,
+      "max": 470.3
+    },
+    "read_and_decode": {
+      "p50": 10.8,
+      "p95": 45.0,
+      "p99": 54.4,
+      "max": 54.4
+    },
+    "append_to_dynamodb": {
+      "p50": 3011.5,
+      "p95": 3711.0,
+      "p99": 3890.9,
+      "max": 3890.9
+    },
+    "project_and_publish": {
+      "p50": 245.0,
+      "p95": 425.9,
+      "p99": 3919.4,
+      "max": 3919.4
+    }
+  },
+  "share_of_time": {
+    "append_to_dynamodb": "81%",
+    "project_and_publish": "12%",
+    "stream_io": "7%"
+  },
+  "messages_published": 78,
+  "final_score": [
+    3,
+    3
+  ],
+  "note": "One worker, one match, on a laptop against DynamoDB Local in Docker. Managed DynamoDB writes an order of magnitude faster; the projection figure is independent of the store. The pipeline shards by match, so throughput across matches scales with workers."
+}

@@ -1,0 +1,30 @@
+{
+  "match": "Argentina v France",
+  "events": 4407,
+  "rebuild_state_ms": {
+    "p50": 8.9,
+    "p95": 26.6,
+    "p99": 26.6,
+    "max": 26.6
+  },
+  "recompute_win_probability_ms": {
+    "p50": 6.8,
+    "p95": 12.8,
+    "p99": 12.8,
+    "max": 12.8
+  },
+  "regenerate_report_ms": {
+    "p50": 34.7,
+    "p95": 62.1,
+    "p99": 62.1,
+    "max": 62.1
+  },
+  "rebuild_whole_document_ms": {
+    "p50": 80.5,
+    "p95": 95.0,
+    "p99": 95.0,
+    "max": 95.0
+  },
+  "full_propagation_p95_ms": 95.0,
+  "note": "A correction rebuilds the document from the log rather than patching state: state, features, model, metrics, report and shot map together."
+}

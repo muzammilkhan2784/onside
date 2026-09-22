@@ -1,0 +1,27 @@
+# StatsBomb open data and everything derived from it - re-downloadable
+data/
+!data/.gitkeep
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+.venv/
+venv/
+
+node_modules/
+frontend/dist/
+demo/index.html
+
+infra/cdk.out/
+.env
+
+# Local secrets and tooling - never committed
+.env.*
+!.env.example
+.claude/
+*.log
+coverage/

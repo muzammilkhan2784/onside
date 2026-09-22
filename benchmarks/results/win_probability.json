@@ -1,0 +1,156 @@
+{
+  "generated_at": "2026-09-20",
+  "split": {
+    "kind": "time-based, on a match-date boundary",
+    "cutoff_date": "2023-10-07",
+    "train_rows": 288288,
+    "train_matches": 3168,
+    "test_rows": 72163,
+    "test_matches": 793,
+    "source": "StatsBomb Open Data, every competition-season published"
+  },
+  "features": [
+    "minute",
+    "minutes_remaining",
+    "score_diff",
+    "red_card_diff",
+    "xg_diff",
+    "shots_diff",
+    "shots_on_target_diff",
+    "possession_diff",
+    "elo_diff",
+    "is_neutral_venue"
+  ],
+  "best_iteration": 83,
+  "brier": {
+    "lightgbm": 0.4042,
+    "logistic_regression": 0.4114,
+    "baseline_constant_prior": 0.6486,
+    "baseline_score_decides": 0.4694
+  },
+  "log_loss": {
+    "lightgbm": 0.697,
+    "logistic_regression": 0.7081,
+    "baseline_constant_prior": 1.0693,
+    "baseline_score_decides": 0.8131
+  },
+  "reliability": [
+    {
+      "bin_lo": 0.0,
+      "bin_hi": 0.1,
+      "predicted": 0.0364,
+      "observed": 0.0388,
+      "n": 56280
+    },
+    {
+      "bin_lo": 0.1,
+      "bin_hi": 0.2,
+      "predicted": 0.1453,
+      "observed": 0.1467,
+      "n": 34509
+    },
+    {
+      "bin_lo": 0.2,
+      "bin_hi": 0.3,
+      "predicted": 0.2502,
+      "observed": 0.2378,
+      "n": 33585
+    },
+    {
+      "bin_lo": 0.3,
+      "bin_hi": 0.4,
+      "predicted": 0.3446,
+      "observed": 0.3389,
+      "n": 23694
+    },
+    {
+      "bin_lo": 0.4,
+      "bin_hi": 0.5,
+      "predicted": 0.4475,
+      "observed": 0.442,
+      "n": 14135
+    },
+    {
+      "bin_lo": 0.5,
+      "bin_hi": 0.6,
+      "predicted": 0.5461,
+      "observed": 0.5552,
+      "n": 10218
+    },
+    {
+      "bin_lo": 0.6,
+      "bin_hi": 0.7,
+      "predicted": 0.6516,
+      "observed": 0.707,
+      "n": 9114
+    },
+    {
+      "bin_lo": 0.7,
+      "bin_hi": 0.8,
+      "predicted": 0.7504,
+      "observed": 0.7801,
+      "n": 8123
+    },
+    {
+      "bin_lo": 0.8,
+      "bin_hi": 0.9,
+      "predicted": 0.848,
+      "observed": 0.808,
+      "n": 11199
+    },
+    {
+      "bin_lo": 0.9,
+      "bin_hi": 1.0,
+      "predicted": 0.9657,
+      "observed": 0.969,
+      "n": 15632
+    }
+  ],
+  "calibration_by_minute": [
+    {
+      "bucket": "0-15",
+      "brier": 0.5316,
+      "n": 11895
+    },
+    {
+      "bucket": "15-30",
+      "brier": 0.4925,
+      "n": 11895
+    },
+    {
+      "bucket": "30-45",
+      "brier": 0.448,
+      "n": 11895
+    },
+    {
+      "bucket": "45-60",
+      "brier": 0.3998,
+      "n": 11895
+    },
+    {
+      "bucket": "60-75",
+      "brier": 0.3295,
+      "n": 11895
+    },
+    {
+      "bucket": "75-90",
+      "brier": 0.2405,
+      "n": 11895
+    }
+  ],
+  "inference_ms_single_row": 0.102,
+  "recompute_90_minute_series_ms": 0.189,
+  "feature_importance": {
+    "minute": 140523,
+    "minutes_remaining": 13049,
+    "score_diff": 1198270,
+    "red_card_diff": 13681,
+    "xg_diff": 70937,
+    "shots_diff": 28092,
+    "shots_on_target_diff": 72192,
+    "possession_diff": 31711,
+    "elo_diff": 354630,
+    "is_neutral_venue": 3268
+  },
+  "exported_trees": 249
+}

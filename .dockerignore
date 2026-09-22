@@ -1,0 +1,14 @@
+data/
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+frontend/dist
+.git
+demo/index.html
+# Secrets stay out of every image (and so out of ECR).
+.env
+.env.*
+!.env.example
+infra/cdk.out

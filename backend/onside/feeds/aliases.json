@@ -1,0 +1,16 @@
+{
+  "_note": "Hand-curated cross-feed aliases for cases fuzzy matching cannot resolve (nicknames, name changes, transliteration). Keys are <feed>:<feed id>; values are Onside canonical ids, which are StatsBomb ids where StatsBomb covers the entity.",
+  "players": {
+    "football-data:44": "5503",
+    "api-football:154": "5503",
+    "api-football:278": "3009",
+    "api-football:44": "4320",
+    "api-football:47380": "5470"
+  },
+  "teams": {
+    "football-data:81": "217",
+    "api-football:529": "217",
+    "football-data:86": "220",
+    "api-football:541": "220"
+  }
+}

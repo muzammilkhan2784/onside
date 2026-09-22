@@ -1,0 +1,52 @@
+{
+  "_provenance": "Shaped from football-data.org's published v4 /matches response schema. The endpoint needs an API key, so this is not a recording; team and competition names are real, scores are illustrative.",
+  "filters": { "dateFrom": "2026-09-21", "dateTo": "2026-09-23", "permission": "TIER_ONE" },
+  "resultSet": { "count": 3, "competitions": "PL,PD", "first": "2026-09-21", "last": "2026-09-23", "played": 1 },
+  "matches": [
+    {
+      "area": { "id": 2072, "name": "England", "code": "ENG" },
+      "competition": { "id": 2021, "name": "Premier League", "code": "PL", "type": "LEAGUE" },
+      "season": { "id": 2403, "startDate": "2026-08-15", "endDate": "2027-05-23", "currentMatchday": 5 },
+      "id": 600101,
+      "utcDate": "2026-09-22T19:00:00Z",
+      "status": "IN_PLAY",
+      "matchday": 5,
+      "stage": "REGULAR_SEASON",
+      "group": null,
+      "lastUpdated": "2026-09-22T19:40:00Z",
+      "homeTeam": { "id": 57, "name": "Arsenal FC", "shortName": "Arsenal", "tla": "ARS" },
+      "awayTeam": { "id": 61, "name": "Chelsea FC", "shortName": "Chelsea", "tla": "CHE" },
+      "score": { "winner": null, "duration": "REGULAR", "fullTime": { "home": 1, "away": 0 }, "halfTime": { "home": null, "away": null } }
+    },
+    {
+      "area": { "id": 2224, "name": "Spain", "code": "ESP" },
+      "competition": { "id": 2014, "name": "Primera Division", "code": "PD", "type": "LEAGUE" },
+      "season": { "id": 2410, "startDate": "2026-08-16", "endDate": "2027-05-30", "currentMatchday": 6 },
+      "id": 600202,
+      "utcDate": "2026-09-21T19:00:00Z",
+      "status": "FINISHED",
+      "matchday": 6,
+      "stage": "REGULAR_SEASON",
+      "group": null,
+      "lastUpdated": "2026-09-21T21:05:00Z",
+      "homeTeam": { "id": 81, "name": "FC Barcelona", "shortName": "Barça", "tla": "FCB" },
+      "awayTeam": { "id": 86, "name": "Real Madrid CF", "shortName": "Real Madrid", "tla": "RMA" },
+      "score": { "winner": "DRAW", "duration": "REGULAR", "fullTime": { "home": 2, "away": 2 }, "halfTime": { "home": 1, "away": 0 } }
+    },
+    {
+      "area": { "id": 2072, "name": "England", "code": "ENG" },
+      "competition": { "id": 2021, "name": "Premier League", "code": "PL", "type": "LEAGUE" },
+      "season": { "id": 2403, "startDate": "2026-08-15", "endDate": "2027-05-23", "currentMatchday": 5 },
+      "id": 600103,
+      "utcDate": "2026-09-23T18:45:00Z",
+      "status": "TIMED",
+      "matchday": 5,
+      "stage": "REGULAR_SEASON",
+      "group": null,
+      "lastUpdated": "2026-09-22T08:00:00Z",
+      "homeTeam": { "id": 64, "name": "Liverpool FC", "shortName": "Liverpool", "tla": "LIV" },
+      "awayTeam": { "id": 65, "name": "Manchester City FC", "shortName": "Man City", "tla": "MCI" },
+      "score": { "winner": null, "duration": "REGULAR", "fullTime": { "home": null, "away": null }, "halfTime": { "home": null, "away": null } }
+    }
+  ]
+}

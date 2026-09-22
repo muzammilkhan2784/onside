@@ -1,0 +1,21 @@
+{
+  "_provenance": "Shaped from the published football-data.org v4 /matches/{id} response schema. NOT a recording: match detail needs an API key. Team and player ids are illustrative.",
+  "id": 419001,
+  "utcDate": "2024-05-19T15:00:00Z",
+  "status": "FINISHED",
+  "homeTeam": {"id": 65, "name": "Manchester City FC"},
+  "awayTeam": {"id": 563, "name": "West Ham United FC"},
+  "score": {"winner": "HOME_TEAM", "fullTime": {"home": 3, "away": 1}, "halfTime": {"home": 2, "away": 1}},
+  "goals": [
+    {"minute": 2, "injuryTime": null, "type": "REGULAR", "team": {"id": 65, "name": "Manchester City FC"}, "scorer": {"id": 3754, "name": "Phil Foden"}},
+    {"minute": 18, "injuryTime": null, "type": "REGULAR", "team": {"id": 65, "name": "Manchester City FC"}, "scorer": {"id": 3754, "name": "Phil Foden"}},
+    {"minute": 42, "injuryTime": null, "type": "REGULAR", "team": {"id": 563, "name": "West Ham United FC"}, "scorer": {"id": 8341, "name": "Mohammed Kudus"}},
+    {"minute": 59, "injuryTime": null, "type": "REGULAR", "team": {"id": 65, "name": "Manchester City FC"}, "scorer": {"id": 3222, "name": "Rodri"}}
+  ],
+  "bookings": [
+    {"minute": 75, "team": {"id": 563, "name": "West Ham United FC"}, "player": {"id": 7001, "name": "Edson Alvarez"}, "card": "YELLOW"}
+  ],
+  "substitutions": [
+    {"minute": 76, "team": {"id": 65, "name": "Manchester City FC"}, "playerOut": {"id": 3754, "name": "Phil Foden"}, "playerIn": {"id": 3900, "name": "Julian Alvarez"}}
+  ]
+}

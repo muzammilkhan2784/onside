@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; color-scheme: dark; }
+  body { background: #06100B; min-height: 100vh; }
+  /* Floodlights over a mown pitch, on their own fixed layer. A fixed
+     background-attachment on <body> repaints the whole page on every scroll
+     frame in Chromium; a fixed, promoted pseudo-element is composited once. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    will-change: transform;
+    background:
+      radial-gradient(1100px 480px at 50% -220px, rgba(47, 203, 116, 0.16) 0%, transparent 70%),
+      radial-gradient(700px 360px at 100% 0%, rgba(255, 255, 255, 0.035), transparent 60%),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.014) 0 96px, transparent 96px 192px);
+  }
+  :focus-visible { outline: 2px solid #2FCB74; outline-offset: 2px; border-radius: 6px; }
+  ::selection { background: #2FCB74; color: #03170A; }
+}
+
+@layer components {
+  .panel { @apply rounded-2xl border border-rule bg-deck; }
+  .panel-head { @apply flex flex-wrap items-center justify-between gap-2 border-b border-rule px-4 py-3; }
+  .h-section { @apply flex items-center gap-2 font-display text-[15px] uppercase tracking-[0.06em] text-chalk before:h-3.5 before:w-1 before:rounded-full before:bg-grass before:content-['']; }
+  .eyebrow { @apply font-mono text-[10.5px] uppercase tracking-[0.1em] text-dim; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border border-rule px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.08em] text-mute; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full border border-rule bg-deck2 px-4 py-2 text-[13px] font-bold text-chalk transition hover:border-mute active:translate-y-px disabled:cursor-not-allowed disabled:opacity-40; }
+  .btn-primary { @apply border-grass bg-grass text-[#03170A] hover:bg-[#45DB87]; }
+  .btn-replay { @apply border-replay/60 bg-replay/15 text-replay hover:bg-replay/25; }
+  .btn-signal { @apply border-signal bg-signal font-extrabold text-[#241900]; }
+  .num { font-variant-numeric: tabular-nums; }
+  .link { @apply underline decoration-rule underline-offset-4 hover:decoration-grass; }
+  .scroll-x { @apply overflow-x-auto; scrollbar-width: thin; }
+  /* A strip of turf: used behind scoreboards and heroes. */
+  .turf {
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 10%, transparent 10% 20%),
+      linear-gradient(180deg, #123522 0%, #0B1F14 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

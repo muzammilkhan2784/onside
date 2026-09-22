@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  quality:
+    name: lint and types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install ruff mypy
+      - run: ruff check backend/onside backend/tests backend/benchmarks infra
+      - run: ruff format --check backend/onside
+      # The domain layer is pure and fully typed; it is the part that must never
+      # drift, so it is the part --strict is enforced on.
+      - run: mypy --strict backend/onside/domain
+
+  backend:
+    name: tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [unit, correction, contract, integration, model]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e "backend[dev]"
+      - name: Cache the StatsBomb sample
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: statsbomb-sample-v1
+      - name: Build a three-match archive
+        # The suites skip cleanly without data, but a real archive is what makes
+        # them worth running: the tests then exercise real events end to end.
+        run: |
+          python -m onside.replay.download 43 106 || true
+          python -m onside.ingest.build --competition 43 --limit 3 --workers 4 || true
+        working-directory: backend
+        env:
+          ONSIDE_DATA_DIR: ${{ github.workspace }}/data
+      - name: Fetch the demo match
+        run: python -c "from onside.replay.download import fetch_events, fetch_lineups; fetch_events(3869685); fetch_lineups(3869685)"
+        working-directory: backend
+        env:
+          ONSIDE_DATA_DIR: ${{ github.workspace }}/data
+      - name: Run ${{ matrix.suite }}
+        run: pytest tests/${{ matrix.suite }} -q --durations=5
+        working-directory: backend
+        env:
+          ONSIDE_DATA_DIR: ${{ github.workspace }}/data
+
+  coverage:
+    name: coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e "backend[dev]" pytest-cov
+      - uses: actions/cache@v4
+        with: { path: data, key: statsbomb-sample-v1 }
+      - run: python -c "from onside.replay.download import fetch_events, fetch_lineups; fetch_events(3869685); fetch_lineups(3869685)"
+        working-directory: backend
+        env: { ONSIDE_DATA_DIR: "${{ github.workspace }}/data" }
+      - run: pytest tests/unit tests/correction tests/contract --cov=onside.domain --cov=onside.feeds --cov=onside.models --cov-report=term-missing --cov-fail-under=85
+        working-directory: backend
+        env: { ONSIDE_DATA_DIR: "${{ github.workspace }}/data" }
+
+  web:
+    name: web app
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    name: images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with: { context: ., target: runtime, push: false, cache-from: "type=gha", cache-to: "type=gha,mode=max" }
+      - uses: docker/build-push-action@v6
+        with: { context: ./frontend, push: false, cache-from: "type=gha", cache-to: "type=gha,mode=max" }
+
+  cdk:
+    name: infrastructure synth
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r infra/requirements.txt
+      # Synth only. Deploying is a human decision, after the billing alarm.
+      - run: python app.py
+        working-directory: infra
+        env: { CDK_DEFAULT_ACCOUNT: "111111111111", CDK_DEFAULT_REGION: "us-east-1" }

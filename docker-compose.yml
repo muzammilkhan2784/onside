@@ -1,0 +1,151 @@
+# Onside - the whole system on one machine.
+#
+#   docker compose up -d --build
+#
+# brings up the data services, seeds them from the archive, starts the API,
+# two ingest workers, the reclaimer, the replay service, the fixtures and
+# social workers, and the web app. Keys for the outside feeds live in .env
+# (git- and Docker-ignored); see .env.example.
+# Nothing replays until someone asks for it (Replays page, or POST
+# /api/replay/start): a match from the archive is a finished match, and the
+# site says so. Nothing here talks to AWS.
+
+name: onside
+
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runtime
+  env_file: .env.example
+  restart: unless-stopped
+  environment:
+    ONSIDE_DYNAMO_ENDPOINT: http://dynamodb:8000
+    ONSIDE_REDIS_URL: redis://redis:6379/0
+    ONSIDE_ARCHIVE_URI: s3://onside-archive/events
+    ONSIDE_S3_ENDPOINT: http://minio:9000
+    ONSIDE_CORS_ORIGINS: http://localhost:5173
+  volumes:
+    - ./data:/app/data
+    - ./models:/app/models
+  depends_on:
+    redis: { condition: service_healthy }
+    dynamodb: { condition: service_started }
+    minio: { condition: service_healthy }
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports: ["6379:6379"]
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+
+  dynamodb:
+    image: amazon/dynamodb-local:2.5.3
+    restart: unless-stopped
+    ports: ["8000:8000"]
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    user: root
+    volumes:
+      - dynamo:/home/dynamodblocal/data
+
+  minio:
+    image: quay.io/minio/minio:latest  # Docker Hub stopped publishing MinIO in 2025
+    restart: unless-stopped
+    ports: ["9000:9000", "9001:9001"]
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: onside
+      MINIO_ROOT_PASSWORD: onside-local-only
+    volumes:
+      - minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      retries: 20
+
+  seed:
+    <<: *backend
+    healthcheck: { disable: true }
+    restart: "no"
+    # Builds a quick archive on a clean clone (ONSIDE_BOOTSTRAP=full for all
+    # 3,961 matches), then seeds DynamoDB and mirrors Parquet to MinIO.
+    command: ["python", "-m", "onside.ingest.bootstrap"]
+
+  api:
+    <<: *backend
+    command: ["uvicorn", "onside.api.main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]
+    ports: ["8080:8080"]
+    depends_on:
+      seed: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 5s
+      retries: 20
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "onside.workers.ingest_worker"]
+    healthcheck: { disable: true }
+    deploy: { replicas: 2 }
+    depends_on:
+      seed: { condition: service_completed_successfully }
+
+  reclaimer:
+    <<: *backend
+    healthcheck: { disable: true }
+    command: ["python", "-m", "onside.workers.reclaimer"]
+    depends_on:
+      seed: { condition: service_completed_successfully }
+
+  replay:
+    <<: *backend
+    healthcheck: { disable: true }
+    command: ["python", "-m", "onside.replay.driver", "--serve"]
+    depends_on:
+      api: { condition: service_healthy }
+
+  fixtures:
+    <<: *backend
+    healthcheck: { disable: true }
+    # Current fixtures, tables and scorers from football-data.org. Off (and
+    # says so on the site) until FOOTBALL_DATA_API_KEY is set in .env.
+    command: ["python", "-m", "onside.workers.fixtures"]
+    environment:
+      ONSIDE_DYNAMO_ENDPOINT: http://dynamodb:8000
+      ONSIDE_REDIS_URL: redis://redis:6379/0
+      FOOTBALL_DATA_API_KEY: ${FOOTBALL_DATA_API_KEY:-}
+
+  social:
+    <<: *backend
+    healthcheck: { disable: true }
+    # Public posts about the current matches. Mastodon needs no key; Bluesky,
+    # Reddit and X switch on when their keys are in .env. Only this container
+    # ever sees those keys.
+    command: ["python", "-m", "onside.workers.social"]
+    environment:
+      ONSIDE_DYNAMO_ENDPOINT: http://dynamodb:8000
+      ONSIDE_REDIS_URL: redis://redis:6379/0
+      BLUESKY_HANDLE: ${BLUESKY_HANDLE:-}
+      BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
+      X_MAX_READS_PER_DAY: ${X_MAX_READS_PER_DAY:-0}
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports: ["5173:80"]
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  dynamo:
+  minio:

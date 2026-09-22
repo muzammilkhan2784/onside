@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onside"
+version = "0.1.0"
+description = "Correction-aware live soccer match intelligence"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "boto3>=1.34",
+    "redis>=5.0",
+    "duckdb>=1.1",
+    "pyarrow>=16",
+    "numpy>=1.26",
+    "lightgbm>=4.3",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+train = ["scikit-learn>=1.4"]
+dev = [
+    "scikit-learn>=1.4",
+    "moto[dynamodb]>=5.0",
+    "fakeredis>=2.26",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "hypothesis>=6.100",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+include = ["onside*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+# The domain layer is pure and fully typed; the archive/feed edges deal in
+# untyped JSON and are checked less aggressively.
+[[tool.mypy.overrides]]
+module = ["lightgbm.*", "sklearn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# Third-party deprecation noise from the test client itself, not from Onside.
+filterwarnings = ["ignore:Using .httpx. with .starlette.testclient.:UserWarning"]
+
+[tool.coverage.run]
+branch = false
+omit = [
+    # Offline batch jobs, run by `make train` and `make data`, not by the
+    # service. They are exercised end to end when the archive is rebuilt;
+    # unit-testing them would mostly be asserting on mocks.
+    "*/onside/models/dataset.py",
+    "*/onside/models/train_wp.py",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

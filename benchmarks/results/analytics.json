@@ -1,0 +1,19 @@
+{
+  "question": "Every shot from outside the box in La Liga, grouped by player",
+  "archive": {
+    "competition": "La Liga",
+    "matches": 867,
+    "events": 3132716
+  },
+  "duckdb_ms": 782.8,
+  "duckdb_rows": 5000,
+  "duckdb_full_scan_ms": 108.3,
+  "dynamodb_sample": {
+    "matches": 10,
+    "events": 31703,
+    "ms": 14092.8
+  },
+  "dynamodb_projected_ms": 1392574.7,
+  "speedup": 1779,
+  "note": "The DynamoDB figure is measured over a sample and projected to the full competition, because storing 1.8M event items to answer one analytical question is the thing the split architecture exists to avoid. DynamoDB Local runs in Docker here; managed DynamoDB is faster per request but the shape of the result does not change."
+}
