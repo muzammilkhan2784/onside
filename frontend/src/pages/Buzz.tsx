@@ -90,7 +90,16 @@ export default function Buzz() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]">
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        {/* On a phone the topics are one swipeable row, so the posts come first. */}
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 scroll-x lg:hidden">
+          {[null, ...fixtures, ...comps].map((t) => (
+            <button key={t?.id ?? "all"} onClick={() => set("topic", t?.id ?? "")} aria-pressed={topic === (t?.id ?? "all")}
+              className={clsx("chip shrink-0 normal-case tracking-normal", topic === (t?.id ?? "all") && "border-grass/60 text-chalk")}>
+              {t ? t.label : "All football"}{t ? <span className="text-dim num">{t.posts}</span> : null}
+            </button>
+          ))}
+        </div>
+        <aside className="hidden space-y-4 lg:sticky lg:top-20 lg:block lg:self-start">
           <section className="panel overflow-hidden">
             <div className="panel-head"><h2 className="h-section">Topics</h2></div>
             <TopicButton t={null} active={topic === "all"} onPick={() => set("topic", "")} />

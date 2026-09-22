@@ -31,7 +31,9 @@ export function dayLabel(day: string, now = new Date()): string {
 }
 
 export function kickoffTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  // "19:00" or "7:00 PM", as the reader's locale writes it - without a
+  // leading zero, which on a phone is the difference between one line and two.
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 export function useToday() {
@@ -81,7 +83,7 @@ export function FixtureLine({ f, buzz }: { f: Fixture; buzz?: number }) {
   const awayWon = played && h !== null && a !== null && a > h;
   const body = (
     <>
-      <span className="font-mono text-[11px] font-bold num"><StatusCell f={f} /></span>
+      <span className="font-mono text-[10.5px] font-bold leading-tight num sm:text-[11px]"><StatusCell f={f} /></span>
       <span className="flex min-w-0 items-center justify-end gap-2">
         <span className={clsx("truncate text-right", homeWon ? "font-extrabold" : played ? "text-mute" : "font-semibold")}>{f.home.name}</span>
         <Crest name={f.home.name} code={f.home.code} size={18} />
@@ -95,11 +97,13 @@ export function FixtureLine({ f, buzz }: { f: Fixture; buzz?: number }) {
         <span className={clsx("truncate", awayWon ? "font-extrabold" : played ? "text-mute" : "font-semibold")}>{f.away.name}</span>
       </span>
       <span className="justify-self-end font-mono text-[10.5px] text-dim num">
-        {buzz ? <span className="rounded-full border border-rule px-1.5 py-0.5 text-mute" title={`${buzz} posts about this match in the last day`}>💬 {buzz}</span> : null}
+        {buzz ? <span className="whitespace-nowrap rounded-full border border-rule px-1.5 py-0.5 text-mute" title={`${buzz} posts about this match in the last day`}>💬 {buzz}</span> : null}
       </span>
     </>
   );
-  const cls = "grid grid-cols-[3.2rem_1fr_auto_1fr_2.6rem] items-center gap-2 border-b border-rule/60 px-3 py-2.5 text-[13.5px] last:border-0 sm:grid-cols-[4.2rem_1fr_auto_1fr_3.4rem] sm:gap-3 sm:px-4";
+  // Minmax(0, 1fr) lets the team names use every spare pixel before they
+  // truncate; the post-count column takes no room when there is no count.
+  const cls = "grid grid-cols-[3rem_minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-1.5 border-b border-rule/60 px-2.5 py-2.5 text-[13px] last:border-0 sm:grid-cols-[4.2rem_minmax(0,1fr)_auto_minmax(0,1fr)_3.4rem] sm:gap-3 sm:px-4 sm:text-[13.5px]";
   return buzz !== undefined
     ? <Link to={`/buzz?topic=${f.id}`} className={clsx(cls, "transition-colors hover:bg-deck2/60")} aria-label={`${f.home.name} v ${f.away.name} - see what people are saying`}>{body}</Link>
     : <div className={cls}>{body}</div>;

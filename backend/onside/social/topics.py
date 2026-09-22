@@ -32,6 +32,31 @@ COMPETITION_ALIASES: dict[str, tuple[str, ...]] = {
     "WC": ("world cup", "worldcup"),
     "EC": ("euro 2028", "euros"),
 }
+#: Other competitions whose names contain these ones.
+LOOKALIKES: dict[str, tuple[str, ...]] = {
+    "PL": tuple(
+        f"{c} premier league"
+        for c in (
+            "canadian",
+            "scottish",
+            "indian",
+            "bangladesh",
+            "caribbean",
+            "welsh",
+            "northern irish",
+            "nifl",
+            "egyptian",
+            "russian",
+            "ukrainian",
+            "pakistan",
+        )
+    )
+    + ("premier league 2", "premier league darts", "premier league cup", "pl2"),
+    "SA": ("serie a femminile", "serie a women", "série a brasil", "brasileirao serie a"),
+    "BL1": ("2. bundesliga", "frauen-bundesliga", "frauen bundesliga", "women's bundesliga"),
+    "PD": ("liga f",),
+    "ELC": ("women's championship", "scottish championship"),
+}
 COMPETITION_TAGS: dict[str, tuple[str, ...]] = {
     "CL": ("championsleague", "ucl"),
     "PL": ("premierleague", "epl"),
@@ -158,6 +183,7 @@ def plan(fixtures: list[dict[str, Any]], now: float | None = None) -> Plan:
                 names=tuple(
                     fold(n) for n in (names.get(c, ""), *COMPETITION_ALIASES.get(c, ())) if n
                 ),
+                not_names=tuple(fold(n) for n in LOOKALIKES.get(c, ())),
             )
         )
 

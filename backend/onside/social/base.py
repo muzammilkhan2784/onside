@@ -99,6 +99,7 @@ class Topic:
     home: tuple[str, ...] = ()  # aliases, folded
     away: tuple[str, ...] = ()
     names: tuple[str, ...] = ()  # competition aliases, folded
+    not_names: tuple[str, ...] = ()  # look-alikes that are other competitions
     meta: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
 
 
@@ -109,7 +110,8 @@ def _mentions(text: str, aliases: tuple[str, ...]) -> bool:
 def classify(text: str, topics: list[Topic], via: str = "") -> list[str]:
     """The topics a post is about. A fixture needs both teams named - or one,
     when the post was found by searching for that fixture. A competition needs
-    its name, or a fixture of its own. Empty means "not about anything we show"."""
+    its name in the post, or a fixture of its own. Empty means "not about
+    anything we show"."""
     folded = fold(text)
     hits: list[str] = []
     for t in topics:
@@ -123,9 +125,15 @@ def classify(text: str, topics: list[Topic], via: str = "") -> list[str]:
             hits.append(t.id)
     comps_of_hits = {t.competition for t in topics if t.id in hits}
     for t in topics:
-        if t.kind == "competition" and (
-            t.id in comps_of_hits or _mentions(folded, t.names) or via == t.id
-        ):
+        # Being found by a competition search is not enough: search engines
+        # match loosely ("Serie A" finds "...à la Rabat"). The post must name
+        # the competition, or be about one of its fixtures.
+        if t.kind != "competition":
+            continue
+        own = folded
+        for other in t.not_names:  # "Canadian Premier League" is not the Premier League
+            own = own.replace(other, " ")
+        if t.id in comps_of_hits or _mentions(own, t.names):
             hits.append(t.id)
     return hits
 

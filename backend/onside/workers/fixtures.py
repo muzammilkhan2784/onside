@@ -151,11 +151,16 @@ class Poller:
                 _put(self.r, COMPETITIONS, comps)
                 self.codes = active(comps)
                 self.competitions_at = time.time()
-                self.round_queue = [
-                    (c["code"], c["season"]["matchday"] + 1)
-                    for c in comps
-                    if c["code"] in BURST and c["code"] in self.codes and c["season"]["matchday"]
-                ]
+                self.round_queue = sorted(
+                    (
+                        (c["code"], c["season"]["matchday"] + 1)
+                        for c in comps
+                        if c["code"] in BURST
+                        and c["code"] in self.codes
+                        and c["season"]["matchday"]
+                    ),
+                    key=lambda cm: BURST.index(cm[0]),  # biggest league first
+                )
             except FeedError as exc:
                 log.warning("competitions: %s", exc)
         if self.codes and self.tick_n == 0:

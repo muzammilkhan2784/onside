@@ -176,3 +176,18 @@ def test_one_failing_query_costs_only_that_query():
     import pytest
     with pytest.raises(RuntimeError, match="requests failed"):
         down.collect(PLAN)
+
+
+def test_a_competition_search_alone_does_not_place_a_post():
+    # Bluesky's search for "Serie A" returned a French post about airlines.
+    text = "Algérie-Maroc : Air France et Transavia, complices d'un jeu d'exclusion à la Rabat !"
+    plan = topics.plan([fx("fd-3", "Milan", "Lecce", code="SA")])
+    assert classify(text, plan.topics, via="SA") == []
+    assert not is_football(text, [])
+    assert classify("Serie A is wide open this year", plan.topics, via="SA") == ["SA"]
+
+
+def test_a_look_alike_competition_is_not_the_real_one():
+    plan = topics.plan([fx("fd-4", "Arsenal", "Leeds")])
+    assert classify("FULL TIME: HFX Wanderers 4-1 Inter Toronto - Canadian Premier League", plan.topics) == []
+    assert classify("The Premier League title race is on", plan.topics) == ["PL"]
