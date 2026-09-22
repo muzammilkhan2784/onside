@@ -22,6 +22,11 @@ import sys
 from pathlib import Path
 
 import boto3
+from botocore.exceptions import (
+    ClientError,
+    MissingDependencyException,
+    NoCredentialsError,
+)
 
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 PATH = "/onside"
@@ -57,7 +62,9 @@ def write_env(name: str, value: str, path: Path = ENV_FILE) -> None:
             break
     else:
         lines.append(f"{name}={value}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # Bytes, not text: on Windows text mode would write CRLF, and Compose can
+    # keep the stray CR as the last character of the key.
+    path.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
 
 
 def put(ssm: object, name: str, value: str) -> None:
@@ -71,7 +78,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--set", metavar="NAME", choices=KEYS, help="rotate one key")
     ap.add_argument("--list", action="store_true", help="list the stored names")
     args = ap.parse_args(argv)
-    ssm = boto3.client("ssm")
+    try:
+        ssm = boto3.client("ssm")
+        ssm.get_paginator("get_parameters_by_path")  # fail here, not after a prompt
+        boto3.client("sts").get_caller_identity()
+    except MissingDependencyException:
+        print('Your AWS sign-in (`aws login`) needs one extra package for Python: '
+              'pip install "botocore[crt]"', file=sys.stderr)
+        return 1
+    except (NoCredentialsError, ClientError) as exc:
+        print(f"Not signed in to AWS ({type(exc).__name__}). Run `aws login` first.", file=sys.stderr)
+        return 1
 
     if args.list:
         pages = ssm.get_paginator("get_parameters_by_path").paginate(Path=PATH)
