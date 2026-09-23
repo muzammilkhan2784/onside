@@ -38,6 +38,23 @@ STATUS = {
 }
 
 
+#: football-data.org's official names, in the words people use for them. A
+#: Spanish match labelled "Primera Division" reads as a different league from
+#: the "La Liga" in the archive, and nobody searches for the official name.
+NAMES = {
+    "PD": "La Liga",
+    "BSA": "Brasileirão",
+    "CL": "Champions League",
+    "EC": "European Championship",
+    "WC": "World Cup",
+    "CLI": "Copa Libertadores",
+}
+
+
+def competition_name(code: str, given: str) -> str:
+    return NAMES.get(code, "") or given
+
+
 class FootballDataAdapter:
     name = FEED
 
@@ -70,7 +87,7 @@ class FootballDataAdapter:
             out.append(
                 CompetitionRef(
                     id=str(c["id"]),
-                    name=c["name"],
+                    name=competition_name(c.get("code", ""), c["name"]),
                     season_id=str(season.get("id", "")),
                     season_name=f"{season.get('startDate', '')[:4]}",
                 )
@@ -196,7 +213,7 @@ class FootballDataAdapter:
                 {
                     "code": c.get("code", ""),
                     "id": str(c.get("id", "")),
-                    "name": c.get("name", ""),
+                    "name": competition_name(c.get("code", ""), c.get("name", "")),
                     "type": c.get("type", ""),
                     "area": (c.get("area") or {}).get("name", ""),
                     "season": {
@@ -282,7 +299,7 @@ def fixture_card(m: dict[str, Any]) -> dict[str, Any]:
         "source": FEED,
         "competition": {
             "id": str(comp.get("id", "")),
-            "name": comp.get("name", ""),
+            "name": competition_name(comp.get("code", ""), comp.get("name", "")),
             "code": comp.get("code", ""),
         },
         "kickoffUtc": m.get("utcDate", ""),

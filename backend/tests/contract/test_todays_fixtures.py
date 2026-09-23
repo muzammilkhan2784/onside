@@ -60,6 +60,14 @@ def test_the_window_is_three_days_back_to_six_ahead_in_utc():
     assert fixtures.window(dt.date(2026, 1, 1)) == ("2025-12-29", "2026-01-07")
 
 
+def test_leagues_carry_the_name_people_use_not_the_official_one():
+    a, _ = adapter()
+    names = {c["competition"]["code"]: c["competition"]["name"]
+             for c in a.matches_between("2026-09-21", "2026-09-23")}
+    assert names["PD"] == "La Liga"  # the feed says "Primera Division"
+    assert names["PL"] == "Premier League"  # already right: left alone
+
+
 def test_snapshot_is_sorted_by_kickoff():
     a, _ = adapter()
     snap = fixtures.snapshot(a, dt.date(2026, 9, 22))
