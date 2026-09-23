@@ -200,8 +200,8 @@ backend/onside/
 ├── replay/        open-data fetch, wall-clock schedule, VAR injector, driver
 └── api/           FastAPI: routes, schemas, errors, WebSockets, lite pages
 frontend/src/      React 18 + TypeScript + Vite + Tailwind + TanStack Query
-infra/             AWS CDK: the free tier (one stack) and the full deployment
-                   (billing alarm, network, data, compute)
+infra/             AWS CDK: the free tier (one stack, the default) and the
+                   full deployment; onside_secrets.py, free_check.py
 ```
 
 ---
@@ -292,7 +292,7 @@ a zero-heavy grid specifically, because random sampling will never find it.
 ## Tests
 
 ```bash
-make test        # 232 backend tests (plus 38 in the web app: npm test)
+make test        # 239 backend tests (plus 38 in the web app: npm test)
 make check       # ruff, mypy --strict on the domain, tests, web typecheck
 ```
 
@@ -356,6 +356,10 @@ npx aws-cdk deploy OnsideFree
 cd ../backend && ONSIDE_ENV=aws ONSIDE_TABLE=onside-free python -m onside.ingest.seed
 ```
 
+`OnsideFree` is the only stack the app defines by default, so `cdk deploy
+--all` cannot start an ElastiCache node, a NAT gateway or a load balancer by
+accident; the paid deployment needs `-c profile=full` and its own name.
+
 One stack on services that stay inside AWS's always-free allowances:
 CloudFront in front of an S3 bucket holding the web app, a Lambda running the
 unchanged FastAPI app behind the [Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter),
@@ -382,12 +386,31 @@ Secrets are SecureString parameters, read by the worker at start-up and every
 fifteen minutes after, so a rotated key takes effect without a redeploy.
 They never pass through CloudFormation or the image.
 
+**What it costs.** Nothing in it is billed by the hour, and the allowances it
+lives inside do not expire: CloudFront's first terabyte and ten million
+requests a month, Lambda's million requests and 400,000 GB-seconds, DynamoDB's
+25 GB and 25 provisioned units (the key-value table takes 20 of them), 3 days
+of logs, and standard Parameter Store. Three things still add up slowly:
+stored container images (about $0.10 a GB a month), requests against the
+on-demand table (12.5 cents a million reads), and the S3 the site is served
+from - cents a month between them.
+
+```bash
+python infra/free_check.py          # what, if anything, is billed by the hour
+python infra/free_check.py --fix    # keep 2 images, bound Onside's log retention
+```
+
+It is read-only without `--fix`, exits non-zero if it finds an instance, a
+load balancer, a NAT gateway, a database, a Redis node or an unattached disk
+anywhere in the region, and prints how much of each free allowance this month
+has used.
+
 ### On AWS, the full deployment
 
 ```bash
 cd infra && pip install -r requirements.txt
-npx aws-cdk deploy OnsideBilling --context alarmEmail=you@example.com   # $20 alarm first
-npx aws-cdk deploy OnsideNetwork OnsideData OnsideCompute
+npx aws-cdk deploy OnsideBilling -c profile=full --context alarmEmail=you@example.com
+npx aws-cdk deploy OnsideNetwork OnsideData OnsideCompute -c profile=full
 ```
 
 Four stacks, 76 resources (83 with today's fixtures: store the key in Secrets

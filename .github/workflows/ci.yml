@@ -116,7 +116,8 @@ jobs:
       - uses: actions/setup-python@v7
         with: { python-version: "3.12", cache: pip }
       - run: pip install -r infra/requirements.txt
-      # Synth only. Deploying is a human decision, after the billing alarm.
+      # Synth only, both profiles: the free deployment and the paid one.
+      # Deploying either is a human decision.
       - run: python app.py
         working-directory: infra
-        env: { CDK_DEFAULT_ACCOUNT: "111111111111", CDK_DEFAULT_REGION: "us-east-1" }
+        env: { CDK_DEFAULT_ACCOUNT: "111111111111", CDK_DEFAULT_REGION: "us-east-1", ONSIDE_PROFILE: "all" }

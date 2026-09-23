@@ -34,21 +34,35 @@ REPO_ROOT = str(Path(__file__).resolve().parents[1])
 app = cdk.App()
 env = cdk.Environment(account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
                       region=os.environ.get("CDK_DEFAULT_REGION", "us-east-1"))
-billing = BillingStack(app, "OnsideBilling", env=cdk.Environment(account=env.account, region="us-east-1"),
-                       email=app.node.try_get_context("alarmEmail") or "")
-network = NetworkStack(app, "OnsideNetwork", env=env)
-data = DataStack(app, "OnsideData", vpc=network.vpc, env=env)
-compute = ComputeStack(app, "OnsideCompute", vpc=network.vpc, data=data, repo_root=REPO_ROOT, env=env)
-for stack in (network, data, compute):
-    # `add_stack_dependency` on newer CDK, `add_dependency` before it.
-    depend = getattr(stack, "add_stack_dependency", None) or stack.add_dependency
-    depend(billing)  # nothing that costs money deploys before the alarm
-# No billing dependency: nothing in it charges by the hour.
-FreeStack(app, "OnsideFree", repo_root=REPO_ROOT, env=env)
+
+# Which stacks exist at all. The default is the free deployment on its own, so
+# `cdk deploy --all` cannot start an ElastiCache node, a NAT gateway or a load
+# balancer by accident: the paid stacks are not in the app unless asked for.
+#   -c profile=free  (default)  OnsideFree
+#   -c profile=full             the billing alarm, network, data and compute
+#   -c profile=all              both, which is what CI synthesises
+PROFILE = app.node.try_get_context("profile") or os.environ.get("ONSIDE_PROFILE") or "free"
+if PROFILE not in ("free", "full", "all"):
+    raise SystemExit(f"unknown profile {PROFILE!r}: expected free, full or all")
+
+if PROFILE in ("free", "all"):
+    FreeStack(app, "OnsideFree", repo_root=REPO_ROOT, env=env)
+
+if PROFILE in ("full", "all"):
+    billing = BillingStack(app, "OnsideBilling", env=cdk.Environment(account=env.account, region="us-east-1"),
+                           email=app.node.try_get_context("alarmEmail") or "")
+    network = NetworkStack(app, "OnsideNetwork", env=env)
+    data = DataStack(app, "OnsideData", vpc=network.vpc, env=env)
+    compute = ComputeStack(app, "OnsideCompute", vpc=network.vpc, data=data, repo_root=REPO_ROOT, env=env)
+    for stack in (network, data, compute):
+        # `add_stack_dependency` on newer CDK, `add_dependency` before it.
+        depend = getattr(stack, "add_stack_dependency", None) or stack.add_dependency
+        depend(billing)  # nothing that costs money deploys before the alarm
+
 cdk.Tags.of(app).add("project", "onside")
 
 if __name__ == "__main__":
     assembly = app.synth()
-    print(f"Synthesised {len(assembly.stacks)} stacks to {assembly.directory}")
+    print(f"Synthesised {len(assembly.stacks)} stacks ({PROFILE}) to {assembly.directory}")
     for s in assembly.stacks:
         print(f"  {s.stack_name}: {len(s.template.get('Resources', {}))} resources")

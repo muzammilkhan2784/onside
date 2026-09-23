@@ -1,4 +1,4 @@
-.PHONY: help up down logs data seed train test lint types bench web check demo clean
+.PHONY: help up down logs data seed train test lint types bench web check demo clean free
 
 help:
 	@echo "up      - the whole system in Docker (API, workers, replay, web)"
@@ -12,6 +12,10 @@ help:
 	@echo "bench   - measure everything the README claims"
 	@echo "web     - run the web app against a local API"
 	@echo "check   - lint, types, tests, web typecheck"
+	@echo "free    - is the AWS account still free? (read-only)"
+
+free:
+	cd infra && python free_check.py
 
 up:
 	docker compose up -d --build
