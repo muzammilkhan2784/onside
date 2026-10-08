@@ -27,6 +27,7 @@ never sees them.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
@@ -41,9 +42,18 @@ from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3deploy
+from aws_cdk import custom_resources as cr
 from constructs import Construct
 
 SSM_PATH = "/onside"
+#: Stored images are the one part of this that is charged by the gigabyte, and
+#: every deploy adds one. Keep the live image and the one before it.
+KEEP_IMAGES = 2
+#: A ping often enough that Lambda keeps an execution environment alive, so a
+#: visitor never waits for a cold start. Provisioned concurrency would do it
+#: properly and costs about $13 a month; this costs a few hundred GB-seconds
+#: of the free 400,000.
+WARM_EVERY = 5
 #: The SPA's routes have no file extension; send them to index.html. The API
 #: paths have their own behaviours, so this never sees them.
 SPA_REWRITE = """
@@ -164,6 +174,50 @@ class FreeStack(Stack):
                     worker, event=events.RuleTargetInput.from_object({"job": job}), retry_attempts=0,
                 )],
             )
+        events.Rule(
+            self, "WarmSchedule",
+            description="Keep one API environment alive, so nobody waits for a cold start",
+            schedule=events.Schedule.rate(Duration.minutes(WARM_EVERY)),
+            targets=[targets.LambdaFunction(
+                api, event=events.RuleTargetInput.from_object({"job": "warm"}), retry_attempts=0,
+            )],
+        )
+
+        # Every deploy pushes an image to the CDK's shared repository, and
+        # nothing there expires on its own. This teaches it to, once, from
+        # inside the stack - so staying cheap is not a chore somebody has to
+        # remember.
+        assets_repo = f"cdk-hnb659fds-container-assets-{self.account}-{self.region}"
+        cr.AwsCustomResource(
+            self, "ExpireOldImages",
+            on_update=cr.AwsSdkCall(
+                service="ECR",
+                action="putLifecyclePolicy",
+                parameters={
+                    "repositoryName": assets_repo,
+                    "lifecyclePolicyText": json.dumps({
+                        "rules": [{
+                            "rulePriority": 1,
+                            "description": f"Keep the {KEEP_IMAGES} newest images",
+                            "selection": {
+                                "tagStatus": "any",
+                                "countType": "imageCountMoreThan",
+                                "countNumber": KEEP_IMAGES,
+                            },
+                            "action": {"type": "expire"},
+                        }]
+                    }),
+                },
+                physical_resource_id=cr.PhysicalResourceId.of(f"{assets_repo}-lifecycle"),
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["ecr:PutLifecyclePolicy"],
+                    resources=[self.format_arn(service="ecr", resource="repository", resource_name=assets_repo)],
+                )
+            ]),
+            log_group=logs_for("expire-old-images"),
+        )
 
         # ------------------------------------------------------------ edge
         site = s3.Bucket(

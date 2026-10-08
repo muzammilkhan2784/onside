@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import PlainTextResponse
 
 from ...store import client as store_client
@@ -159,6 +159,18 @@ def _fixtures_on() -> bool:
     except Exception:  # noqa: BLE001 - a store hiccup is not a reason to fail this
         return False
     return bool(raw) and bool(json.loads(raw).get("enabled"))
+
+
+@ops.post("/events", include_in_schema=False)
+def scheduled_event(event: dict[str, Any] = Body(default={})) -> dict[str, Any]:  # noqa: B008
+    """Where a schedule arrives on the free-tier deployment: the Lambda Web
+    Adapter posts events that are not HTTP requests to this path. The only one
+    is "warm", every five minutes, which does nothing except keep this
+    execution environment alive so a visitor never waits for a cold start.
+
+    Not reachable from the web: CloudFront only forwards the paths the site
+    uses, and the function's own URL answers no one without a signature."""
+    return {"ok": True, "job": str(event.get("job", "warm"))}
 
 
 @ops.get("/api/features", summary="What this deployment can do")

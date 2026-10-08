@@ -51,6 +51,24 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await ws.manager.stop()
 
 
+#: Routes that change: today's fixtures, the live tables and scorers, the
+#: social feed. A minute, which is as often as the workers refresh them.
+MOVING = ("/api/today", "/api/current", "/api/social")
+#: Everything else is the archive, and 2018 will not be replayed differently
+#: tomorrow. An hour at the edge means a second visitor costs no database
+#: read and no Lambda invocation at all.
+MOVING_S, SETTLED_S = 60, 3600
+
+
+def cache_for(route: str) -> str:
+    """How long this answer may be reused. The edge honours it, so most
+    requests never reach the API - which is why a free deployment can serve a
+    site at all."""
+    if any(route.startswith(m) for m in MOVING):
+        return f"public, max-age={MOVING_S}, stale-while-revalidate={MOVING_S * 5}"
+    return f"public, max-age={SETTLED_S}, stale-while-revalidate={SETTLED_S * 24}"
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Onside API",
@@ -101,9 +119,7 @@ def create_app() -> FastAPI:
             and "live" not in request.url.path
             and "replay" not in route
         ):
-            response.headers.setdefault(
-                "Cache-Control", "public, max-age=60, stale-while-revalidate=300"
-            )
+            response.headers.setdefault("Cache-Control", cache_for(route))
         return response
 
     errors.install(app)

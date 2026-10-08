@@ -284,3 +284,19 @@ def test_the_social_feed_route_pages_posts(api, redis_fake):
     assert len(rest["items"]) == 2 and rest["next"] is None
     ov = api.get("/api/social/overview").json()
     assert ov["total24h"] == 5 and set(ov["sources"]) >= {"bluesky", "mastodon", "reddit", "x"}
+
+
+def test_history_is_cached_for_an_hour_and_today_for_a_minute(api, redis_fake):
+    """The edge serves most requests, so a free deployment can carry a site:
+    nothing in the archive changes, while current football moves."""
+    import json
+
+    from onside.workers import fixtures
+
+    redis_fake.set(fixtures.KEY, json.dumps({"enabled": True, "ok": True, "matches": [],
+                                             "fetchedAt": 0}))
+    assert "max-age=3600" in api.get("/api/competitions").headers["Cache-Control"]
+    assert "max-age=3600" in api.get("/api/home").headers["Cache-Control"]
+    assert "max-age=60" in api.get("/api/today").headers["Cache-Control"]
+    assert "max-age=60" in api.get("/api/social").headers["Cache-Control"]
+

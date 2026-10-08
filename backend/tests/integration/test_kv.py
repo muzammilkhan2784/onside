@@ -114,3 +114,6 @@ def test_the_free_tier_api_serves_the_kv_and_turns_replays_off(dynamo_kv, monkey
     assert refused.status_code == 503
     assert refused.json()["error"] == "replays_unavailable"
     assert api.get("/health").json()["checks"]["kv"] == "ok"
+    # The warm ping: it answers, and it is not in the published API.
+    assert api.post("/events", json={"job": "warm"}).json() == {"ok": True, "job": "warm"}
+    assert "/events" not in api.get("/openapi.json").json()["paths"]

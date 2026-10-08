@@ -12,6 +12,14 @@ WORKDIR /app
 FROM base AS deps
 COPY backend/pyproject.toml backend/pyproject.toml
 RUN mkdir -p backend/onside && touch backend/onside/__init__.py \
+ && pip install --prefix=/install "./backend[archive]"
+
+# The same install without pyarrow, which only the archive builder imports.
+# On Lambda that is 150 MB of Arrow that would be paid for in stored image
+# and pulled on every cold start, to be imported never.
+FROM base AS deps-lambda
+COPY backend/pyproject.toml backend/pyproject.toml
+RUN mkdir -p backend/onside && touch backend/onside/__init__.py \
  && pip install --prefix=/install ./backend
 
 FROM base AS runtime
@@ -47,11 +55,16 @@ FROM runtime AS archive-compact
 COPY data/archive/events /tmp/events
 RUN python -m onside.archive.compact /tmp/events /tmp/events.parquet
 
-FROM runtime AS lambda
+FROM base AS lambda
+COPY --from=deps-lambda /install /usr/local
 COPY --from=lambda-adapter /lambda-adapter /opt/extensions/lambda-adapter
+COPY backend/onside /app/onside
+COPY models /app/models
 COPY --from=archive-compact /tmp/events.parquet /app/archive/events.parquet
+RUN useradd --create-home --uid 10001 onside && chown -R onside /app
+USER onside
 # Lambda's filesystem is read-only apart from /tmp.
 ENV ONSIDE_ENV=aws ONSIDE_KV=dynamo ONSIDE_ARCHIVE_URI=/app/archive/events.parquet \
-    ONSIDE_DATA_DIR=/tmp/onside ONSIDE_DUCKDB_TMP=/tmp/duckdb HOME=/tmp \
-    PORT=8080 AWS_LWA_READINESS_CHECK_PATH=/api/features
+    ONSIDE_DATA_DIR=/tmp/onside ONSIDE_MODEL_DIR=/app/models ONSIDE_DUCKDB_TMP=/tmp/duckdb \
+    HOME=/tmp PORT=8080 AWS_LWA_READINESS_CHECK_PATH=/api/features
 CMD ["python", "-m", "onside.serverless", "api"]

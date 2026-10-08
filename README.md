@@ -292,7 +292,7 @@ a zero-heavy grid specifically, because random sampling will never find it.
 ## Tests
 
 ```bash
-make test        # 239 backend tests (plus 38 in the web app: npm test)
+make test        # 240 backend tests (plus 38 in the web app: npm test)
 make check       # ruff, mypy --strict on the domain, tests, web typecheck
 ```
 
@@ -390,10 +390,25 @@ They never pass through CloudFormation or the image.
 lives inside do not expire: CloudFront's first terabyte and ten million
 requests a month, Lambda's million requests and 400,000 GB-seconds, DynamoDB's
 25 GB and 25 provisioned units (the key-value table takes 20 of them), 3 days
-of logs, and standard Parameter Store. Three things still add up slowly:
-stored container images (about $0.10 a GB a month), requests against the
-on-demand table (12.5 cents a million reads), and the S3 the site is served
-from - cents a month between them.
+of logs, and standard Parameter Store. Staying inside them is designed, not
+hoped for:
+
+* **The edge answers most requests.** The archive is history, so it is cached
+  for an hour and served stale for a day while it refreshes; today's fixtures,
+  tables and posts for a minute, which is how often the workers rewrite them.
+  A second visitor to a match page costs no Lambda invocation and no database
+  read at all.
+* **The image carries no passenger.** pyarrow is needed to *write* the Parquet
+  archive and never to read it, so it is an optional extra: 150 MB less to
+  store and to pull on a cold start.
+* **Old images expire.** Every deploy pushes one, and nothing there expires by
+  itself, so the stack sets a lifecycle rule keeping the newest two.
+* **One environment stays warm.** A ping every five minutes, costing a few
+  hundred of the free 400,000 GB-seconds, instead of provisioned concurrency
+  at about $13 a month.
+
+What is left is pennies: requests against the on-demand archive table (12.5
+cents a million reads) and the S3 the site is served from.
 
 ```bash
 python infra/free_check.py          # what, if anything, is billed by the hour
