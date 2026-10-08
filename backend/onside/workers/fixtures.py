@@ -106,6 +106,11 @@ def publish(r: Any, body: dict[str, Any]) -> None:
 
 
 STATE = "fd:poller"
+#: The poller keeps fetched cards - the far window, each league's next round -
+#: between runs. They are built by this code, so when the shape or the wording
+#: of a card changes, yesterday's cards are wrong and cheap to replace. Bump
+#: this and they are dropped on the next tick instead of lingering for hours.
+STATE_VERSION = 2
 
 
 class Poller:
@@ -131,6 +136,9 @@ class Poller:
         if not raw:
             return
         st = json.loads(raw)
+        if st.get("v") != STATE_VERSION:
+            log.info("stored fixtures state is from an older build; fetching again")
+            return
         self.tick_n = st.get("tick", 0)
         self.codes = st.get("codes", [])
         self.competitions_at = st.get("competitionsAt", 0.0)
@@ -141,6 +149,7 @@ class Poller:
 
     def _persist(self) -> None:
         state = {
+            "v": STATE_VERSION,
             "tick": self.tick_n,
             "codes": self.codes,
             "competitionsAt": self.competitions_at,

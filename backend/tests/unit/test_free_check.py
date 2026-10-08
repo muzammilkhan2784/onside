@@ -95,6 +95,7 @@ EMPTY = {
         "logGroups": [
             {"logGroupName": "/aws/lambda/onside-free-api"},  # no retention
             {"logGroupName": "/aws/lambda/onside-free-worker", "retentionInDays": 3},
+            {"logGroupName": "/aws/lambda/OnsideFree-CustomS3AutoDelete-x"},  # ours too
             {"logGroupName": "/aws/someone-else"},
         ]
     },
@@ -152,5 +153,6 @@ def test_fix_expires_old_images_and_bounds_only_our_logs():
     assert policy["rules"][0]["selection"]["countNumber"] == free_check.KEEP_IMAGES
     assert policy["rules"][0]["action"] == {"type": "expire"}
     kept = [c[1]["logGroupName"] for c in made["logs"].calls if c[0] == "put_retention_policy"]
-    assert kept == ["/aws/lambda/onside-free-api"]  # not the other account's group
+    assert kept == ["/aws/lambda/onside-free-api",
+                    "/aws/lambda/OnsideFree-CustomS3AutoDelete-x"]  # not the other group
     assert "keeping the 2 newest images" in text

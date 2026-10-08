@@ -313,6 +313,7 @@ class FreeStack(Stack):
                 distribution=dist,
                 distribution_paths=["/*"],
                 memory_limit=512,
+                log_group=logs_for("site-files"),
             )
 
         CfnOutput(self, "SiteUrl", value=f"https://{dist.distribution_domain_name}")

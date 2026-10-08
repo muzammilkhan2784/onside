@@ -232,7 +232,7 @@ def fix(client: Client, repos: list[dict[str, Any]], groups: list[str]) -> list[
             done.append(f"{repo['name']}: keeping the {KEEP_IMAGES} newest images")
     logs = client("logs")
     for name in groups:
-        if not name.startswith("/aws/lambda/onside"):
+        if not name.lower().startswith("/aws/lambda/onside"):
             continue  # someone else's logs are not ours to shorten
         if safe(
             lambda n=name: logs.put_retention_policy(

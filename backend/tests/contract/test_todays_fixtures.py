@@ -171,3 +171,23 @@ def test_one_failed_request_does_not_blank_the_fixtures():
     empty = fakeredis.FakeRedis(decode_responses=True)
     fixtures.Poller(a, empty).tick()  # nothing good yet: the failure itself is shown
     assert json.loads(empty.get(fixtures.KEY))["ok"] is False
+
+
+def test_cards_cached_by_an_older_build_are_not_kept():
+    """The stored window holds cards this code built. After a change to what a
+    card says, the old ones go rather than lingering until the next refresh."""
+    import fakeredis
+
+    r = fakeredis.FakeRedis(decode_responses=True)
+    a = CountingAdapter()
+    fixtures.Poller(a, r).tick()
+    stale = json.loads(r.get(fixtures.STATE))
+    assert stale["v"] == fixtures.STATE_VERSION and stale["ahead"]
+    r.set(fixtures.STATE, json.dumps({**stale, "v": stale["v"] - 1}))
+
+    a.calls.clear()
+    poller = fixtures.Poller(a, r)
+    assert poller.tick_n == 0 and poller.ahead == []  # nothing carried over
+    poller.tick()
+    assert any(c.startswith("competitions") for c in a.calls)  # it fetches again
+
