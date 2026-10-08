@@ -56,17 +56,28 @@ SECRETS_EVERY_S = 900
 _loaded: list[str] = []
 
 
-def _names() -> list[str]:
-    return list(_loaded)
+def versions(path: str | None = None, client: Any = None) -> list[tuple[str, int]]:
+    """Each parameter's name and version, without decrypting anything.
 
+    Reading a SecureString costs a KMS request; asking what version it is
+    costs none. Checking four parameters every quarter of an hour would spend
+    most of the free 20,000 KMS requests a month on finding out that nothing
+    had changed."""
+    path = (path if path is not None else os.environ.get("ONSIDE_SSM_PATH", "")).rstrip("/")
+    if not path:
+        return []
+    if client is None:
+        import boto3
 
-def _digest(names: list[str]) -> str:
-    """A fingerprint of the loaded values, to notice a rotation without
-    keeping a second copy of any secret around."""
-    import hashlib
-
-    joined = "\n".join(f"{n}={os.environ.get(n, '')}" for n in sorted(names))
-    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+        client = boto3.client("ssm")
+    out: list[tuple[str, int]] = []
+    pages = client.get_paginator("describe_parameters").paginate(
+        ParameterFilters=[{"Key": "Path", "Option": "OneLevel", "Values": [path]}]
+    )
+    for page in pages:
+        for p in page["Parameters"]:
+            out.append((p["Name"].rsplit("/", 1)[-1], int(p.get("Version", 0))))
+    return sorted(out)
 
 
 def worker_app() -> Any:
@@ -82,20 +93,23 @@ def worker_app() -> Any:
     # Kept for the life of the execution environment, so Bluesky's session is
     # refreshed from one run to the next rather than signed into every time.
     cache: dict[str, Any] = {}
-    secrets = {"at": time.time(), "digest": _digest(_names())}
+    secrets: dict[str, Any] = {"at": time.time(), "versions": versions()}
 
     def refresh_secrets() -> None:
-        """Re-read Parameter Store every fifteen minutes, so a rotated key
-        takes effect without a redeploy. Only a change rebuilds anything."""
+        """Every fifteen minutes, ask whether any key has been rotated; read
+        it only if one has. A rotation takes effect without a redeploy, and a
+        quiet quarter of an hour costs nothing."""
         if not os.environ.get("ONSIDE_SSM_PATH") or time.time() - secrets["at"] < SECRETS_EVERY_S:
             return
-        names = load_ssm()
         secrets["at"] = time.time()
-        if (digest := _digest(names)) != secrets["digest"]:
-            secrets["digest"] = digest
-            settings.cache_clear()
-            cache.clear()
-            log.info("secrets changed; sources rebuilt")
+        now = versions()
+        if now == secrets["versions"]:
+            return
+        secrets["versions"] = now
+        load_ssm()
+        settings.cache_clear()
+        cache.clear()
+        log.info("a key changed; sources rebuilt")
 
     def run_fixtures() -> dict[str, Any]:
         r = bus.sync_client()

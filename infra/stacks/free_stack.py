@@ -165,6 +165,12 @@ class FreeStack(Stack):
             actions=["ssm:GetParametersByPath"],
             resources=[self.format_arn(service="ssm", resource="parameter", resource_name=SSM_PATH.strip("/"))],
         ))
+        # Asking which version a parameter is on costs no KMS request, and the
+        # worker asks four times an hour; it only decrypts when one changed.
+        # DescribeParameters is account-wide and takes no resource.
+        worker.add_to_role_policy(iam.PolicyStatement(
+            actions=["ssm:DescribeParameters"], resources=["*"]
+        ))
 
         for job, every in (("fixtures", Duration.minutes(1)), ("social", Duration.minutes(5))):
             events.Rule(
@@ -196,16 +202,31 @@ class FreeStack(Stack):
                 parameters={
                     "repositoryName": assets_repo,
                     "lifecyclePolicyText": json.dumps({
-                        "rules": [{
-                            "rulePriority": 1,
-                            "description": f"Keep the {KEEP_IMAGES} newest images",
-                            "selection": {
-                                "tagStatus": "any",
-                                "countType": "imageCountMoreThan",
-                                "countNumber": KEEP_IMAGES,
+                        "rules": [
+                            {
+                                # What the CDK's own bootstrap policy does;
+                                # this one replaces it, so it keeps doing it.
+                                "rulePriority": 1,
+                                "description": "Expire images nothing points at",
+                                "selection": {
+                                    "tagStatus": "untagged",
+                                    "countType": "sinceImagePushed",
+                                    "countUnit": "days",
+                                    "countNumber": 1,
+                                },
+                                "action": {"type": "expire"},
                             },
-                            "action": {"type": "expire"},
-                        }]
+                            {
+                                "rulePriority": 2,
+                                "description": f"Keep the {KEEP_IMAGES} newest images",
+                                "selection": {
+                                    "tagStatus": "any",
+                                    "countType": "imageCountMoreThan",
+                                    "countNumber": KEEP_IMAGES,
+                                },
+                                "action": {"type": "expire"},
+                            },
+                        ]
                     }),
                 },
                 physical_resource_id=cr.PhysicalResourceId.of(f"{assets_repo}-lifecycle"),
