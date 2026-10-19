@@ -117,6 +117,27 @@ def connect() -> duckdb.DuckDBPyConnection:
         return con
 
 
+def prefetch(root: str | None = None, chunk: int = 8 << 20) -> int:
+    """Read the archive once, in order, so the first real query does not.
+
+    On Lambda the image is pulled block by block as it is touched, and a
+    query's random access across a 150 MB file turns that into dozens of
+    slow round trips - the first all-time leaderboard took 46 seconds. Read
+    sequentially it is a few, so the API does this on a background thread at
+    start-up and the first visitor gets a warm file. Returns bytes read.
+    """
+    uri = (root or settings().archive_uri).rstrip("/")
+    path = Path(uri)
+    if not is_compacted(uri) or not path.is_file():
+        return 0  # a directory of per-match files, or an object store: not ours to warm
+    read = 0
+    with path.open("rb") as f:
+        while block := f.read(chunk):
+            read += len(block)
+    log.info("archive prefetched: %.0f MB", read / 1e6)
+    return read
+
+
 def query(sql: str, params: Sequence[Any] = ()) -> list[dict[str, Any]]:
     cur = connect().cursor()
     try:

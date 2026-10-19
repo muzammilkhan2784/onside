@@ -82,3 +82,21 @@ def test_rows_are_sorted_by_player_so_a_lookup_skips_most_of_the_file(tmp_path):
     compact.compact(str(root), str(out), memory="256MB")
     ids = pq.read_table(out, columns=["player_id"]).column("player_id").to_pylist()
     assert ids == sorted(ids)
+
+
+def test_prefetch_reads_the_compacted_file_and_nothing_else(tmp_path, monkeypatch):
+    root = tmp_path / "events"
+    build(root)
+    out = tmp_path / "events.parquet"
+    compact.compact(str(root), str(out), memory="256MB")
+    monkeypatch.setenv("ONSIDE_ARCHIVE_URI", str(out))
+    config.settings.cache_clear()
+    assert duck.prefetch() == out.stat().st_size
+    monkeypatch.setenv("ONSIDE_ARCHIVE_URI", str(root))  # a file per match: nothing to warm
+    config.settings.cache_clear()
+    assert duck.prefetch() == 0
+    monkeypatch.setenv("ONSIDE_ARCHIVE_URI", "s3://bucket/events")
+    config.settings.cache_clear()
+    assert duck.prefetch() == 0
+    config.settings.cache_clear()
+

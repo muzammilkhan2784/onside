@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 import time
 from typing import Any
 
@@ -146,6 +147,15 @@ def worker_app() -> Any:
     return app
 
 
+def _prefetch_archive() -> None:
+    from .archive.duck import prefetch
+
+    try:
+        prefetch()
+    except Exception as exc:  # noqa: BLE001 - a warm-up failing is not an outage
+        log.info("archive prefetch skipped (%s)", type(exc).__name__)
+
+
 def main(argv: list[str] | None = None) -> None:
     role = (argv or sys.argv[1:] or ["api"])[0]
     logging.basicConfig(level=logging.INFO, format="%(name)s %(message)s")
@@ -157,6 +167,8 @@ def main(argv: list[str] | None = None) -> None:
     import uvicorn
 
     if role == "api":
+        # Warm the archive file while the server starts, never blocking it.
+        threading.Thread(target=_prefetch_archive, daemon=True).start()
         uvicorn.run("onside.api.main:app", host=BIND, port=PORT, proxy_headers=True)
     elif role == "worker":
         uvicorn.run(worker_app(), host=BIND, port=PORT)

@@ -132,7 +132,10 @@ class FreeStack(Stack):
             function_name="onside-free-api",
             code=image(),
             memory_size=1769,  # one full vCPU, for DuckDB's scans of the archive
-            timeout=Duration.seconds(30),
+            # A warm archive answers in milliseconds; this is headroom for the
+            # one scan that lands while a cold environment is still pulling
+            # the file, so it finishes slowly instead of failing.
+            timeout=Duration.seconds(60),
             architecture=lambda_.Architecture.X86_64,
             environment=env,
             log_group=logs_for("api"),
@@ -251,7 +254,8 @@ class FreeStack(Stack):
         )
         # Only CloudFront may call the function URL: it signs each request.
         api_origin = origins.FunctionUrlOrigin.with_origin_access_control(
-            api.add_function_url(auth_type=lambda_.FunctionUrlAuthType.AWS_IAM)
+            api.add_function_url(auth_type=lambda_.FunctionUrlAuthType.AWS_IAM),
+            read_timeout=Duration.seconds(60),  # match the function, so no retry storm
         )
         api_cache = cf.CachePolicy(
             self, "ApiCache",
